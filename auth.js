@@ -20,9 +20,24 @@ function clearSession() {
   localStorage.removeItem('appSession');
 }
 
+function getApiBaseUrl() {
+  const currentOrigin = window.location.origin;
+  if (currentOrigin && currentOrigin !== 'null' && currentOrigin !== 'file://') {
+    return currentOrigin;
+  }
+  return 'http://localhost:3001';
+}
+
+function buildApiUrl(path) {
+  if (!path) return path;
+  if (/^https?:\/\//i.test(path)) return path;
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  return `${getApiBaseUrl()}${normalizedPath}`;
+}
+
 async function fetchJson(url, fallback = null) {
   try {
-    const response = await fetch(url, { cache: 'no-store' });
+    const response = await fetch(buildApiUrl(url), { cache: 'no-store' });
     if (!response.ok) throw new Error('Request failed');
     return await response.json();
   } catch (error) {
@@ -54,8 +69,8 @@ async function getFirebaseAccounts() {
   }
 }
 
-async function getAuthAccounts() {
-  if (authAccountsCache.length) {
+async function getAuthAccounts(forceRefresh = false) {
+  if (!forceRefresh && authAccountsCache.length) {
     return authAccountsCache;
   }
 
@@ -72,11 +87,11 @@ async function getAuthAccounts() {
 
 async function refreshAuthAccounts() {
   authAccountsCache = [];
-  return getAuthAccounts();
+  return getAuthAccounts(true);
 }
 
 async function loginUser(username, password) {
-  const accounts = await getAuthAccounts();
+  const accounts = await getAuthAccounts(true);
   const account = accounts.find(item => item.username === username);
   if (!account || account.password !== password) {
     return { ok: false, message: 'Tên đăng nhập hoặc mật khẩu không đúng.' };
@@ -85,7 +100,7 @@ async function loginUser(username, password) {
   const session = {
     username: account.username,
     role: account.role,
-    page: account.page,
+    page: account.role === 'admin' ? 'quan-ly.html' : (account.page || 'dang-nhap.html'),
     label: account.label
   };
   saveSession(session);
