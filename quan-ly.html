@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quản lý</title>
+    <link rel="stylesheet" href="style.css">
+  </head>
+  <body class="page-manager">
+    <script src="auth.js"></script>
+    <script>
+      if (!requirePageAccess('quan-ly.html')) {
+        document.write('');
+      }
+    </script>
+    <header>
+      <h1>Trang quản lý</h1>
+      <p>Quản lý dữ liệu và kiểm soát hệ thống</p>
+      <button class="logout-btn" onclick="logoutUser()">Đăng xuất</button>
+    </header>
+    <div class="container">
+      <div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;">
+          <div>
+            <h2>Đăng ký tài khoản mới</h2>
+            <p style="margin:4px 0 0; color:#666;">Chỉ quản trị viên mới có thể tạo tài khoản.</p>
+          </div>
+          <button id="showRegisterBtn" class="edit" type="button">Đăng ký</button>
+        </div>
+        <p id="registerMessage" style="margin-top:12px; color:#b91c1c;"></p>
+        <form id="registerForm" style="display:none; margin-top:16px;">
+          <div style="display:grid; gap:12px; max-width:480px;">
+            <div>
+              <label for="newUsername">Tên đăng nhập</label>
+              <input id="newUsername" type="text" required style="width:100%; padding:10px; border:1px solid #ddd; border-radius:8px;">
+            </div>
+            <div>
+              <label for="newPassword">Mật khẩu</label>
+              <input id="newPassword" type="password" required style="width:100%; padding:10px; border:1px solid #ddd; border-radius:8px;">
+            </div>
+            <div>
+              <label for="newRole">Vai trò</label>
+              <select id="newRole" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:8px;">
+                <option value="viewer">viewer</option>
+                <option value="qr">qr</option>
+                <option value="admin">admin</option>
+              </select>
+            </div>
+            <div>
+              <label for="newPage">Trang được phép truy cập</label>
+              <select id="newPage" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:8px;">
+                <option value="index.html">index.html</option>
+                <option value="viewer.html">viewer.html</option>
+                <option value="TaoQR.html">TaoQR.html</option>
+                <option value="quan-ly.html">quan-ly.html</option>
+              </select>
+            </div>
+            <button type="submit" class="edit" style="width:fit-content;">Tạo tài khoản</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="card">
+        <h2>Danh sách mục</h2>
+        <table class="table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Tên mục</th>
+              <th>Trạng thái</th>
+              <th>Hành động</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>1</td>
+              <td>Quản lý người dùng</td>
+              <td>Hoạt động</td>
+              <td class="actions">
+                <button class="edit">Sửa</button>
+                <button class="delete">Xóa</button>
+              </td>
+            </tr>
+            <tr>
+              <td>2</td>
+              <td>Quản lý đơn hàng</td>
+              <td>Hoạt động</td>
+              <td class="actions">
+                <button class="edit">Sửa</button>
+                <button class="delete">Xóa</button>
+              </td>
+            </tr>
+            <tr>
+              <td>3</td>
+              <td>Thống kê QR</td>
+              <td>Chuẩn bị</td>
+              <td class="actions">
+                <button class="edit">Sửa</button>
+                <button class="delete">Xóa</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+    <script>
+      (async function () {
+        const currentUser = window.getCurrentUser ? window.getCurrentUser() : null;
+        const showRegisterBtn = document.getElementById('showRegisterBtn');
+        const registerForm = document.getElementById('registerForm');
+        const registerMessage = document.getElementById('registerMessage');
+
+        if (!currentUser || currentUser.role !== 'admin') {
+          if (showRegisterBtn) showRegisterBtn.style.display = 'none';
+          if (registerForm) registerForm.style.display = 'none';
+          if (registerMessage) registerMessage.textContent = 'Chỉ admin mới có thể tạo tài khoản.';
+          return;
+        }
+
+        if (showRegisterBtn) {
+          showRegisterBtn.addEventListener('click', () => {
+            registerForm.style.display = registerForm.style.display === 'none' ? 'block' : 'none';
+          });
+        }
+
+        if (registerForm) {
+          registerForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            const username = document.getElementById('newUsername').value.trim();
+            const password = document.getElementById('newPassword').value;
+            const role = document.getElementById('newRole').value;
+            const page = document.getElementById('newPage').value;
+
+            if (!username || !password) {
+              registerMessage.textContent = 'Vui lòng nhập đủ tên đăng nhập và mật khẩu.';
+              registerMessage.style.color = '#b91c1c';
+              return;
+            }
+
+            try {
+              const runtimeConfig = await window.getRuntimeConfig();
+              const firebaseConfig = runtimeConfig || {};
+              const appName = 'manager-accounts';
+              if (!firebase.apps.find(app => app.name === appName)) {
+                firebase.initializeApp(firebaseConfig, appName);
+              }
+              const db = firebase.app(appName).firestore();
+              const existingSnap = await db.collection('accounts').where('username', '==', username).get();
+              if (!existingSnap.empty) {
+                registerMessage.textContent = 'Tên đăng nhập đã tồn tại.';
+                registerMessage.style.color = '#b91c1c';
+                return;
+              }
+
+              await db.collection('accounts').add({
+                username,
+                password,
+                role,
+                page,
+                label: page,
+                createdAt: new Date().toISOString(),
+                createdBy: currentUser.username
+              });
+
+              await window.refreshAuthAccounts();
+              registerForm.reset();
+              registerForm.style.display = 'none';
+              registerMessage.textContent = '✅ Tạo tài khoản thành công.';
+              registerMessage.style.color = '#166534';
+            } catch (error) {
+              registerMessage.textContent = '❌ Lỗi: ' + error.message;
+              registerMessage.style.color = '#b91c1c';
+            }
+          });
+        }
+      })();
+    </script>
+  </body>
+</html>

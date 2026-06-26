@@ -1,0 +1,500 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tạo QR - QuanLyTraiCay</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+</head>
+<body>
+  <script src="auth.js"></script>
+  <script>
+    if (!requirePageAccess('TaoQR.html')) {
+      document.write('');
+    }
+  </script>
+  <header>
+    <strong>Nhập Tạo QRcode</strong>
+    <div id="realtimeClock" class="clock"></div>
+    <button class="logout-btn" onclick="logoutUser()">Đăng xuất</button>
+  </header>
+
+  <div class="wrapper">
+    <div class="left">
+      <div class="tabs">
+        <div class="tab active" id="tab-create">Tạo QR</div>
+        <div class="tab" id="tab-history">Lịch sử</div>
+      </div>
+
+      <div id="create-tab">
+        <h3>Tạo QR Mới</h3>
+        
+        <div class="form-row">
+          <label for="ttxe">TTxe</label>
+          <select id="ttxe">
+            <option value="">-- Chọn --</option>
+            <option value="01">01</option><option value="02">02</option><option value="03">03</option>
+            <option value="04">04</option><option value="05">05</option><option value="06">06</option>
+            <option value="07">07</option><option value="08">08</option><option value="09">09</option>
+            <option value="10">10</option><option value="11">11</option><option value="12">12</option>
+            <option value="13">13</option><option value="14">14</option><option value="15">15</option>
+            <option value="16">16</option><option value="17">17</option><option value="18">18</option>
+            <option value="19">19</option><option value="20">20</option>
+          </select>
+        </div>
+
+        <div class="form-row">
+          <label for="bienso">Biển số xe</label>
+          <input id="bienso" type="text" placeholder="Ví dụ: 51H-123.45" style="flex:1">
+        </div>
+
+        <div class="form-row">
+          <label for="kho1">Kho 1</label>
+          <input id="kho1" type="text" placeholder="Kho 1" style="flex:1">
+          <label for="kho2" style="width:70px; text-align:right;">Kho 2</label>
+          <input id="kho2" type="text" placeholder="Kho 2" style="flex:1">
+        </div>
+        <div class="form-row">
+          <label for="kho3">Kho 3</label>
+          <input id="kho3" type="text" placeholder="Kho 3" style="flex:1">
+          <label for="kho4" style="width:70px; text-align:right;">Kho 4</label>
+          <input id="kho4" type="text" placeholder="Kho 4" style="flex:1">
+        </div>
+
+        <div class="form-row">
+          <label for="ncc">NCC</label>
+          <select id="ncc">
+            <option value="009">009 - CTBT</option>
+            <option value="010">010 - Nhà cung cấp B</option>
+          </select>
+          <label for="vitri1" style="width:90px;">Vị Trí Ú 1</label>
+          <input id="vitri1" type="text" placeholder="Vị trí U1" style="width:140px">
+        </div>
+
+        <div class="form-row">
+          <label for="noi">Nơi XS</label>
+          <select id="noi">
+            <option value="MT">MT - Miền Tây</option>
+            <option value="BP">BP - Bình Phước</option>
+            <option value="DN">DN - Đồng Nai</option>
+          </select>
+          <label for="vitri2" style="width:90px;">Vị Trí Ú 2</label>
+          <input id="vitri2" type="text" placeholder="Vị trí U2" style="width:140px">
+        </div>
+
+        <div class="form-row">
+          <label for="hang">Hàng</label>
+          <select id="hang">
+            <option value="D">D </option>
+            <option value="R">R </option>
+          </select>
+          <label for="mui" style="width:90px;">Múi</label>
+          <select id="mui" style="width:140px">
+            <option value="0K">0K</option>
+            <option value="0M">0M</option>
+            <option value="TA">TA</option>
+            <option value="TB">TB</option>
+          </select>
+        </div>
+
+        <div class="form-row">
+          <label for="ngay">Ngày Nhập</label>
+          <input id="ngay" type="date" disabled>
+        </div>
+
+        <div class="form-row">
+          <label for="tongkl">Tổng KL</label>
+          <input id="tongkl" type="text" placeholder="Nhập tổng khối lượng (kg)">
+        </div>
+
+        <div class="buttons">
+          <button id="clearBtn">Xoá</button>
+          <button id="scanBtn" class="scan-btn">📷 Quét QR</button>
+          <button id="genBtn" class="primary">Tạo QR</button>
+          <button id="printBtn">In</button>
+        </div>
+      </div>
+
+      <div id="history-tab" style="display:none;">
+        <h3>Lịch sử QR Code <span id="syncStatus" style="font-size:13px;"></span></h3>
+        
+        <div class="history-actions">
+          <button id="exportBtn" class="export-btn" style="display:none;">Tải lịch sử về (ZIP)</button>
+          <button id="importBtn" class="import-btn" style="display:none;">Nhập lịch sử từ file</button>
+          <button id="deleteAllBtn" class="delete-all-btn" style="display:none;">Xoá toàn bộ lịch sử</button>
+        </div>
+
+        <input type="text" id="searchHistory" placeholder="Tìm theo mã QR..." style="width:100%; padding:10px; margin-bottom:10px;">
+        <div id="historyList" class="history-list"></div>
+      </div>
+    </div>
+
+    <div class="right">
+      <div id="print-area">
+        <div id="qrcode">chờ tạo QR</div>
+        <div id="qtext" class="note"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Quét QR -->
+  <div id="scanModal" class="modal" style="display:none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>📷 Quét Mã QR Code</h3>
+        <span id="closeModal" class="close-btn">&times;</span>
+      </div>
+      <div id="reader" style="width:100%; max-width:400px; margin:20px auto;"></div>
+      <div id="scanResult" style="text-align:center; padding:15px; min-height:50px;"></div>
+    </div>
+  </div>
+
+  <input type="file" id="importFile" accept=".json" style="display:none;">
+
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+  <script>
+    (async () => {
+      window.__APP_SETTINGS = await window.getRuntimeConfig();
+      const firebaseConfig = window.__APP_SETTINGS || {};
+      firebase.initializeApp(firebaseConfig);
+      const db = firebase.database();
+    const historyRef = db.ref('qrHistory');
+
+    let history = [];
+    let html5QrCode = null;
+    let currentPermission = 0; // 0: none, 1: view only, 2: full
+
+    function pad(n){ return n < 10 ? '0' + n : n; }
+
+    const clockEl = document.getElementById('realtimeClock');
+    function updateClock() { 
+      const d = new Date(); 
+      clockEl.textContent = pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds()); 
+    }
+    function setCurrentDate() { 
+      document.getElementById('ngay').value = new Date().toISOString().split('T')[0]; 
+    }
+    updateClock(); setCurrentDate(); setInterval(updateClock, 1000);
+
+    // Tab Lịch sử
+    document.getElementById('tab-history').onclick = () => {
+      document.getElementById('create-tab').style.display = 'none';
+      document.getElementById('history-tab').style.display = 'block';
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.getElementById('tab-history').classList.add('active');
+
+      if (currentPermission === 0) {
+        const pass = prompt("Nhập mật khẩu để truy cập Lịch sử:\n(mật khẩu là nv)", "");
+        if (pass === window.__APP_SETTINGS?.historyPassword) {
+          currentPermission = 2;
+          alert("✅ Toàn quyền truy cập đã được kích hoạt.");
+        } else if (pass === "nv" || pass === "NV") {
+          currentPermission = 1;
+          alert("✅ Chế độ chỉ xem & in đã được kích hoạt.");
+        } else {
+          alert("❌ Mật khẩu sai!");
+          document.getElementById('tab-create').click();
+          return;
+        }
+      }
+      loadHistoryFromFirebase();
+      updateUIByPermission();
+    };
+
+    function updateUIByPermission() {
+      const isFull = currentPermission === 2;
+      document.getElementById('exportBtn').style.display = isFull ? 'inline-block' : 'none';
+      document.getElementById('importBtn').style.display = isFull ? 'inline-block' : 'none';
+      document.getElementById('deleteAllBtn').style.display = isFull ? 'inline-block' : 'none';
+    }
+
+    function loadHistoryFromFirebase() {
+      const status = document.getElementById('syncStatus');
+      status.textContent = 'Đang đồng bộ...';
+      status.style.color = '#ffc107';
+
+      historyRef.once('value', (snapshot) => {
+        const data = snapshot.val();
+        history = data ? Object.values(data) : [];
+        history.sort((a,b) => (b.id || 0) - (a.id || 0));
+        renderHistory();
+        status.textContent = '✓ Đã đồng bộ';
+        status.style.color = '#28a745';
+        setTimeout(() => status.textContent = '', 2000);
+      });
+    }
+
+    function saveToHistory(data) {
+      const newEntry = {...data, timestamp: new Date().toLocaleString('vi-VN'), id: Date.now()};
+      historyRef.push(newEntry).then(() => loadHistoryFromFirebase());
+    }
+
+    function renderHistory(filtered = history) {
+      const list = document.getElementById('historyList');
+      if (filtered.length === 0) {
+        list.innerHTML = '<p style="text-align:center;padding:40px;color:#888;">Chưa có dữ liệu lịch sử</p>';
+        return;
+      }
+      list.innerHTML = filtered.map(item => `
+        <div class="history-item">
+          <div onclick="loadQRFromHistory(${JSON.stringify(item).replace(/"/g,'&quot;')})" style="flex:1; cursor:pointer;">
+            <strong>${item.ma_lo}</strong><br>
+            <small>${item.timestamp || ''} ${item.bienso ? `| ${item.bienso}` : ''}</small>
+          </div>
+          <div style="display:flex; gap:6px;">
+            <button class="print-btn" onclick="event.stopImmediatePropagation(); printFromHistory('${item.ma_lo}')">In</button>
+            ${currentPermission === 2 ? `<button class="delete-btn" onclick="event.stopImmediatePropagation(); deleteSingleHistory('${item.ma_lo}')">Xoá</button>` : ''}
+          </div>
+        </div>
+      `).join('');
+    }
+
+    window.loadQRFromHistory = function(item) {
+      document.getElementById('qrcode').innerHTML = '';
+      new QRCode(document.getElementById('qrcode'), {text: item.ma_lo, width: 250, height: 250});
+      document.getElementById('qtext').innerHTML = `
+        <div>${item.ma_lo}</div>
+        <div>Ngày: ${item.ngay_display}</div>
+        ${item.tongkl ? `<div>Tổng KL: ${item.tongkl} kg</div>` : ''}
+        ${item.bienso ? `<div>Biển số: ${item.bienso}</div>` : ''}
+      `;
+    };
+
+    window.printFromHistory = function(ma_lo) {
+      const item = history.find(h => h.ma_lo === ma_lo);
+      if (item) loadQRFromHistory(item);
+      setTimeout(() => window.print(), 300);
+    };
+
+    window.deleteSingleHistory = function(ma_lo) {
+      if (currentPermission !== 2) return;
+      if (!confirm(`Xoá mã lô: ${ma_lo}?`)) return;
+      historyRef.orderByChild('ma_lo').equalTo(ma_lo).once('value', (snapshot) => {
+        snapshot.forEach(child => child.ref.remove());
+        loadHistoryFromFirebase();
+      });
+    };
+
+    // Tab Tạo QR
+    document.getElementById('tab-create').onclick = () => {
+      document.getElementById('create-tab').style.display = 'block';
+      document.getElementById('history-tab').style.display = 'none';
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.getElementById('tab-create').classList.add('active');
+    };
+
+    // Tạo QR
+    document.getElementById('genBtn').addEventListener('click', () => {
+      const ttxe = document.getElementById('ttxe').value.trim();
+      if (!ttxe) return alert('Vui lòng chọn TTxe!');
+
+      const bienso = document.getElementById('bienso').value.trim();
+      const kho1 = document.getElementById('kho1').value.trim();
+      const kho2 = document.getElementById('kho2').value.trim();
+      const kho3 = document.getElementById('kho3').value.trim();
+      const kho4 = document.getElementById('kho4').value.trim();
+
+      const ncc = document.getElementById('ncc').value;
+      const noi = document.getElementById('noi').value;
+      const hang = document.getElementById('hang').value;
+      const mui = document.getElementById('mui').value;
+      const vitri1 = document.getElementById('vitri1').value.trim();
+      const vitri2 = document.getElementById('vitri2').value.trim();
+      const tongkl = document.getElementById('tongkl').value.trim();
+
+      const dateObj = new Date(document.getElementById('ngay').value);
+      const dd = pad(dateObj.getDate());
+      const mm = pad(dateObj.getMonth() + 1);
+      const yy = String(dateObj.getFullYear());
+      const ylast = yy.charAt(yy.length - 1);
+
+      let posPart = '';
+      if (vitri1 && vitri2) posPart = vitri1 + '/' + vitri2;
+      else if (vitri1) posPart = vitri1;
+
+      const ma_lo = hang + ncc + noi + dd + mm + ylast + '-' + ttxe + '-' + mui + (posPart ? '-' + posPart : '');
+
+      const displayDate = dd + '/' + mm + '/' + yy;
+
+      let khoList = [kho1, kho2, kho3, kho4].filter(k => k && k.trim() !== '');
+      const khoDisplay = khoList.join(' - ');
+
+      document.getElementById('qrcode').innerHTML = '';
+      const viewerUrl = `viewer.html?q=${encodeURIComponent(ma_lo)}`;
+      new QRCode(document.getElementById('qrcode'), { text: viewerUrl, width: 250, height: 250 });
+
+      document.getElementById('qtext').innerHTML = `
+        <div>${ma_lo}</div>
+        <div>Ngày: ${displayDate}</div>
+        ${tongkl ? `<div>Tổng KL: ${tongkl} kg</div>` : ""}
+        ${bienso ? `<div>Biển số: ${bienso}</div>` : ""}
+        ${khoDisplay ? `<div>Kho: ${khoDisplay}</div>` : ""}
+      `;
+
+      saveToHistory({ 
+        ma_lo, ngay_display: displayDate, ttxe, bienso, 
+        kho1, kho2, kho3, kho4, ncc, noi, hang, mui, vitri1, vitri2, tongkl 
+      });
+    });
+
+    // Quét QR
+    document.getElementById('scanBtn').addEventListener('click', () => {
+      document.getElementById('scanModal').style.display = 'flex';
+      document.getElementById('scanResult').innerHTML = '';
+      startScanner();
+    });
+
+    document.getElementById('closeModal').addEventListener('click', () => {
+      stopScanner();
+      document.getElementById('scanModal').style.display = 'none';
+    });
+
+    function startScanner() {
+      if (html5QrCode) stopScanner();
+      html5QrCode = new Html5Qrcode("reader");
+
+      html5QrCode.start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: { width: 280, height: 280 } },
+        (decodedText) => {
+          stopScanner();
+          document.getElementById('scanModal').style.display = 'none';
+          
+          // Xử lý link viewer hoặc mã lô
+          if (decodedText.includes('viewer.html?q=')) {
+            window.location.href = decodedText;
+          } else if (decodedText.includes('?q=')) {
+            window.location.href = decodedText;
+          } else {
+            // Nếu chỉ là mã lô thuần
+            window.location.href = `viewer.html?q=${encodeURIComponent(decodedText)}`;
+          }
+        },
+        (error) => {
+          // Không cần alert mỗi lần lỗi nhỏ
+        }
+      ).catch(err => {
+        alert("Không thể mở camera.\nVui lòng cho phép quyền Camera trong trình duyệt.");
+        document.getElementById('scanModal').style.display = 'none';
+      });
+    }
+
+    function stopScanner() {
+      if (html5QrCode) {
+        html5QrCode.stop().catch(() => {});
+        html5QrCode = null;
+      }
+    }
+
+    window.loadQRFromHistoryByCode = function(maLo) {
+      historyRef.orderByChild('ma_lo').equalTo(maLo).once('value', (snapshot) => {
+        let found = false;
+        snapshot.forEach(child => {
+          loadQRFromHistory(child.val());
+          found = true;
+        });
+        if (!found) alert(`Không tìm thấy mã: ${maLo}`);
+      });
+    };
+
+    // Import
+    document.getElementById('importBtn').addEventListener('click', () => {
+      if (currentPermission !== 2) return alert('Bạn không có quyền!');
+      document.getElementById('importFile').click();
+    });
+
+    document.getElementById('importFile').addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(event) {
+        try {
+          const imported = JSON.parse(event.target.result);
+          if (Array.isArray(imported)) {
+            if (confirm(`Nhập ${imported.length} bản ghi?`)) {
+              imported.forEach(item => historyRef.push(item));
+              setTimeout(loadHistoryFromFirebase, 1000);
+              alert('✅ Nhập dữ liệu thành công!');
+            }
+          }
+        } catch (err) { alert('Lỗi file: ' + err.message); }
+      };
+      reader.readAsText(file);
+    });
+
+    // Export
+    document.getElementById('exportBtn').addEventListener('click', async () => {
+      if (currentPermission !== 2) return alert('Bạn không có quyền!');
+      if (history.length === 0) return alert('Lịch sử trống!');
+
+      const dateStr = new Date().toISOString().slice(0,10);
+      const zip = new JSZip();
+
+      zip.file(`qr-history-${dateStr}.json`, JSON.stringify(history, null, 2));
+
+      const excelData = history.map(item => ({
+        "Mã Lô": item.ma_lo,
+        "Ngày Nhập": item.ngay_display,
+        "Thời gian": item.timestamp,
+        "TTxe": item.ttxe,
+        "Biển Số Xe": item.bienso || "",
+        "Kho 1": item.kho1 || "",
+        "Kho 2": item.kho2 || "",
+        "Kho 3": item.kho3 || "",
+        "Kho 4": item.kho4 || "",
+        "NCC": item.ncc,
+        "Nơi XS": item.noi,
+        "Hàng": item.hang,
+        "Múi": item.mui,
+        "Vị Trí 1": item.vitri1 || "",
+        "Vị Trí 2": item.vitri2 || "",
+        "Tổng KL": item.tongkl || ""
+      }));
+
+      const ws = XLSX.utils.json_to_sheet(excelData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "LichSuQR");
+      const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+      zip.file(`qr-history-${dateStr}.xlsx`, excelBuffer);
+
+      const zipBlob = await zip.generateAsync({ type: "blob" });
+      const url = URL.createObjectURL(zipBlob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `qr-history-${dateStr}.zip`;
+      link.click();
+      URL.revokeObjectURL(url);
+
+      alert('✅ Đã tải file ZIP thành công!');
+    });
+
+    // Xoá toàn bộ
+    document.getElementById('deleteAllBtn').addEventListener('click', () => {
+      if (currentPermission !== 2) return alert('Bạn không có quyền!');
+      if (history.length === 0) return alert('Lịch sử đã trống!');
+      if (!confirm('⚠️ Bạn có chắc chắn muốn XOÁ TOÀN BỘ lịch sử?\nHành động này KHÔNG THỂ hoàn tác!')) return;
+      
+      if (prompt('Nhập mật khẩu để xác nhận:') !== window.__APP_SETTINGS?.deletePassword) {
+        return alert('❌ Mật khẩu sai!');
+      }
+
+      historyRef.remove().then(() => {
+        history = [];
+        renderHistory();
+        alert('✅ Đã xoá toàn bộ lịch sử thành công!');
+      }).catch(err => alert('Lỗi xoá: ' + err.message));
+    });
+
+    document.getElementById('printBtn').addEventListener('click', () => window.print());
+    document.getElementById('clearBtn').addEventListener('click', () => location.reload());
+
+    loadHistoryFromFirebase();
+  </script>
+</body>
+</html>

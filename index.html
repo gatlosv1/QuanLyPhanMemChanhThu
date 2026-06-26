@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>In Nhãn TP - Quản Lý Sầu Riêng</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+    
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="page-index bg-gray-100">
+    <script src="auth.js"></script>
+    <script>
+        if (!requirePageAccess('index.html')) {
+            document.write('');
+        }
+    </script>
+    <div class="max-w-7xl mx-auto p-6">
+        <div class="flex justify-between items-center mb-6">
+            <h1 class="text-3xl font-bold text-center text-gray-800 flex-1">HỆ THỐNG IN NHÃN THÀNH PHẨM</h1>
+            <button onclick="logoutUser()" class="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600">Đăng xuất</button>
+        </div>
+
+        <!-- Tabs -->
+        <div class="flex border-b mb-8 bg-white rounded-t-2xl shadow">
+            <button onclick="switchTab(0)" id="tab0" 
+                    class="tab-button flex-1 py-4 text-lg font-semibold border-b-4 border-blue-600 text-blue-600">NHẬP THÔNG TIN</button>
+            <button onclick="switchTab(1)" id="tab1" 
+                    class="tab-button flex-1 py-4 text-lg font-semibold text-gray-500">BÁO CÁO SẢN LƯỢNG</button>
+        </div>
+
+        <!-- Tab 1: Nhập Thông Tin -->
+        <div id="content0">
+            <div class="grid grid-cols-12 gap-6">
+                <div class="col-span-12 lg:col-span-7 bg-white rounded-2xl shadow p-8">
+                    <h2 class="text-2xl font-semibold mb-6">Nhập Thông Tin</h2>
+
+                    <div class="grid grid-cols-2 gap-6">
+                        <div>
+                            <label class="block text-sm font-medium mb-1">Mã BTP (Lot)</label>
+                            <div class="flex gap-2">
+                                <input id="maBTP" type="text" class="flex-[2.5] px-4 py-3 border rounded-xl font-mono text-base" placeholder="D009MT15066-02-0K" oninput="updatePreview()">
+                                <button onclick="openLotModal()" class="flex-1 px-5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-medium flex items-center justify-center gap-2 text-sm">
+                                    <i class="fas fa-history"></i> <span class="hidden sm:inline">Chọn Lot</span>
+                                </button>
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-4 mt-4">
+                                <div>
+                                    <label class="block text-sm font-medium mb-1">Quy Cách</label>
+                                    <input id="quyCach" type="text" value="20kg" class="w-full px-4 py-3 border rounded-xl" oninput="updatePreview()">
+                                </div>
+                            </div>
+
+                            <div class="mt-6">
+                                <label class="block text-sm font-medium mb-1">VÙNG NGUYÊN LIỆU</label>
+                                <select id="vungNguyenLieu" class="w-full px-4 py-3 border rounded-xl" onchange="updatePreview()">
+                                    <option value="MT">MT - Miền Tây</option>
+                                    <option value="BP">BP - Bình Phước</option> 
+                                    <option value="DN">DN - Đồng Nai</option>
+                                    <option value="DL">DL - DakLak</option>
+                                </select>
+                                
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium mb-1">SKU</label>
+                            <input id="sku" type="text" class="w-full px-4 py-3 border rounded-xl font-mono text-base" placeholder="TP101020203.01.001" oninput="updatePreview()">
+
+                            <label class="block text-sm font-medium mb-1 mt-4">Tên Thành Phẩm</label>
+                            <input id="tenTP" type="text" class="w-full px-4 py-3 border rounded-xl" placeholder="TP CẤP ĐÔNG SẦU RIÊNG..." oninput="updatePreview()">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-4 gap-4 mt-6">
+                        <div><label class="block text-sm font-medium mb-1">STT in đầu</label><input id="sttDau" type="number" value="1" class="w-full px-4 py-3 border rounded-xl" oninput="updateSttCuoi()"></div>
+                        <div><label class="block text-sm font-medium mb-1">Số lượng tem</label><input id="soLuongTem" type="number" value="1" min="1" class="w-full px-4 py-3 border rounded-xl font-semibold" oninput="updateSttCuoi()"></div>
+                        <div><label class="block text-sm font-medium mb-1">STT in cuối</label><input id="sttCuoi" type="number" value="1" class="w-full px-4 py-3 border rounded-xl bg-gray-50" readonly></div>
+                        <div>
+                            <label class="block text-sm font-medium mb-1">Ngày SX</label>
+                            <input id="ngaySX" type="date" class="w-full px-4 py-3 border rounded-xl" onchange="updatePreview()">
+                        </div>
+                    </div>
+
+                    <div class="mt-6">
+                        <label class="block text-sm font-medium mb-1">Ngày ĐG </label>
+                        <input id="ngayDG" type="date" class="w-full px-4 py-3 border rounded-xl" onchange="updatePreview()" disabled>
+                    </div>
+
+                    <div class="mt-8 flex gap-4">
+                        <button onclick="loadFromGrid()" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-4 rounded-xl font-medium">
+                            <i class="fas fa-search"></i> Chọn từ Danh sách
+                        </button>
+                        <button onclick="resetSTT()" class="flex-1 bg-red-600 hover:bg-red-700 text-white py-4 rounded-xl font-medium">
+                            <i class="fas fa-undo"></i> Reset STT
+                        </button>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-4 mt-6">
+                        <button onclick="printLabels(false)" 
+                                class="bg-blue-600 hover:bg-blue-700 text-white py-5 rounded-2xl text-xl font-semibold flex items-center justify-center gap-3">
+                            <i class="fas fa-print"></i> IN NHÃN MỚI
+                        </button>
+                        <button onclick="printLabels(true)" 
+                                class="bg-orange-600 hover:bg-orange-700 text-white py-5 rounded-2xl text-xl font-semibold flex items-center justify-center gap-3">
+                            <i class="fas fa-redo"></i> IN LẠI 
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Preview -->
+                <div class="col-span-12 lg:col-span-5 space-y-6">
+                    <div class="bg-white rounded-2xl shadow p-6">
+                        <h2 class="text-xl font-semibold mb-4">Xem Trước Nhãn (90mm × 60mm)</h2>
+                        <div class="flex justify-center bg-gray-50 p-6 rounded-xl">
+                            <div id="previewLabel" class="label-preview"></div>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-2xl shadow overflow-hidden">
+                        <div class="px-6 py-4 bg-gray-50 border-b flex justify-between items-center">
+                            <h3 class="font-semibold">Danh sách Thành Phẩm</h3>
+                            <label class="cursor-pointer bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-xl flex items-center gap-2 text-sm">
+                                <i class="fas fa-upload"></i> Import Excel
+                                <input type="file" id="excelFile" accept=".xlsx,.xls" class="hidden" onchange="importExcel(this)">
+                            </label>
+                        </div>
+                        <div class="p-4">
+                            <input id="searchInput" type="text" placeholder="Tìm mã SP hoặc tên..." class="w-full px-4 py-3 border rounded-xl" onkeyup="filterGrid()">
+                        </div>
+                        <div class="max-h-96 overflow-auto">
+                            <table id="dataGrid" class="w-full text-sm">
+                                <thead class="bg-gray-50 sticky top-0">
+                                    <tr>
+                                        <th class="px-4 py-3 text-left">STT</th>
+                                        <th class="px-4 py-3 text-left">Mã SP</th>
+                                        <th class="px-4 py-3 text-left">Tên TP</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="gridBody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tab 2: Báo Cáo -->
+        <div id="content1" class="hidden">
+            <div class="report-card mb-8">
+                <div class="flex justify-between items-start mb-6">
+                    <div>
+                        <div class="text-sm opacity-75">BÁO CÁO SẢN LƯỢNG IN</div>
+                        <div id="totalTem" class="text-6xl font-bold mt-1">0</div>
+                        <div class="text-sm opacity-75">TEM ĐẠT</div>
+                    </div>
+                    <div class="text-right">
+                        <div id="temHong" class="text-4xl font-bold text-red-400">0</div>
+                        <div class="text-sm opacity-75">TEM HỒNG</div>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-8">
+                    <div>
+                        <div id="lastSTT" class="text-5xl font-bold text-emerald-400">0</div>
+                        <div class="text-sm opacity-75">STT CUỐI</div>
+                    </div>
+                    <div class="text-right">
+                        <div class="text-sm opacity-75">CẬP NHẬT LẦN CUỐI</div>
+                        <div id="lastUpdate" class="font-mono text-lg">Chưa có dữ liệu</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-2xl shadow p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-xl font-semibold">Lịch sử in nhãn</h3>
+                    <div class="flex gap-3">
+                        <button onclick="toggleSelectAll()" id="selectAllBtn"
+                                class="bg-gray-600 hover:bg-gray-700 text-white px-5 py-3 rounded-xl flex items-center gap-2 text-sm">
+                            <i class="fas fa-check-square"></i> Chọn tất cả
+                        </button>
+                        <button onclick="reprintFromHistory()" 
+                                class="bg-orange-600 hover:bg-orange-700 text-white px-6 py-3 rounded-xl flex items-center gap-2">
+                            <i class="fas fa-redo"></i> In lại tem đã chọn
+                        </button>
+                        <button onclick="deleteSelectedHistory()" 
+                                class="bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-xl flex items-center gap-2">
+                            <i class="fas fa-trash"></i> Xóa đã chọn
+                        </button>
+                        <button onclick="exportReportExcel()" 
+                                class="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-xl flex items-center gap-2">
+                            <i class="fas fa-file-excel"></i> Tạo Excel Báo Cáo
+                        </button>
+                    </div>
+                </div>
+                <div class="max-h-[500px] overflow-auto">
+                    <table id="historyTable" class="w-full text-sm"></table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Lịch sử -->
+    <div id="lotModal" class="modal">
+        <div class="modal-content">
+            <div class="p-6 border-b flex justify-between items-center bg-gray-50">
+                <h3 class="text-xl font-bold">📋 Chọn Mã BTP từ Lịch sử Nhập</h3>
+                <span onclick="closeLotModal()" class="text-3xl cursor-pointer hover:text-red-600">&times;</span>
+            </div>
+            <div class="p-4">
+                <input id="searchLot" type="text" placeholder="Tìm theo mã lot..." 
+                       class="w-full px-4 py-3 border rounded-xl mb-3" onkeyup="filterLotList()">
+
+                <div class="flex gap-2 mb-4">
+                    <input id="searchDate" type="date" 
+                           class="flex-1 px-4 py-3 border rounded-xl" 
+                           onchange="filterLotList()">
+                    <button onclick="clearDateFilter()" 
+                            class="px-6 bg-gray-200 hover:bg-gray-300 rounded-xl text-sm font-medium whitespace-nowrap">
+                        Xóa ngày
+                    </button>
+                </div>
+
+                <div id="lotList" class="max-h-[500px] overflow-auto text-sm"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ==================== PHẦN CHỌN LOT TỪ LỊCH SỬ CŨ ====================
+        let historyRef = null;
+        let historyLots = [];
+
+        async function ensureLegacyHistoryRef() {
+            if (historyRef) return historyRef;
+            const runtimeConfig = await window.getRuntimeConfig();
+            const oldConfig = runtimeConfig || {};
+            if (!firebase.apps.find(app => app.name === 'oldApp')) {
+                firebase.initializeApp(oldConfig, 'oldApp');
+            }
+            historyRef = firebase.app('oldApp').database().ref('qrHistory');
+            return historyRef;
+        }
+
+        async function loadHistoryLots() {
+            try {
+                const ref = await ensureLegacyHistoryRef();
+                const snapshot = await ref.once('value');
+                const data = snapshot.val();
+                historyLots = data ? Object.values(data) : [];
+                historyLots.sort((a, b) => (b.id || 0) - (a.id || 0));
+            } catch(e) { console.error(e); }
+        }
+
+        function openLotModal() {
+            loadHistoryLots().then(() => {
+                renderLotList();
+                document.getElementById('lotModal').style.display = 'flex';
+                document.getElementById('searchLot').value = '';
+                document.getElementById('searchDate').value = '';
+            });
+        }
+
+        function closeLotModal() {
+            document.getElementById('lotModal').style.display = 'none';
+        }
+
+        function renderLotList(filtered = historyLots) {
+            const html = filtered.map(item => `
+                <div onclick="selectLot('${item.ma_lo}')" class="px-4 py-3 hover:bg-indigo-50 border-b cursor-pointer">
+                    <div class="font-bold font-mono">${item.ma_lo}</div>
+                    <div class="text-gray-600 text-xs">
+                        ${item.ngay_display || ''} 
+                        ${item.bienso ? `| ${item.bienso}` : ''} 
+                        ${item.tongkl ? `| ${item.tongkl}kg` : ''}
+                    </div>
+                </div>
+            `).join('');
+            document.getElementById('lotList').innerHTML = html || '<p class="p-8 text-center text-gray-400">Không tìm thấy kết quả</p>';
+        }
+
+        function filterLotList() {
+            const textTerm = document.getElementById('searchLot').value.toLowerCase().trim();
+            const dateValue = document.getElementById('searchDate').value;
+
+            const filtered = historyLots.filter(item => {
+                const matchText = !textTerm || item.ma_lo.toLowerCase().includes(textTerm);
+                let matchDate = true;
+                if (dateValue && item.ngay_display) {
+                    const [day, month, year] = item.ngay_display.split('/');
+                    const itemDate = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+                    matchDate = itemDate === dateValue;
+                }
+                return matchText && matchDate;
+            });
+            renderLotList(filtered);
+        }
+
+        function clearDateFilter() {
+            document.getElementById('searchDate').value = '';
+            filterLotList();
+        }
+
+        window.selectLot = function(maLo) {
+            document.getElementById('maBTP').value = maLo;
+            closeLotModal();
+            updatePreview();
+        };
+
+        // ==================== PHẦN CHÍNH: FIREBASE VÀ DỮ LIỆU ====================
+        let runtimeConfig = {};
+        let db = null;
+        let counterRef = null;
+
+        async function initFirebase() {
+            runtimeConfig = await window.getRuntimeConfig();
+            const firebaseConfig = runtimeConfig || {};
+            if (!firebase.apps.find(app => app.name === '[DEFAULT]')) {
+                firebase.initializeApp(firebaseConfig);
+            }
+            db = firebase.firestore();
+            counterRef = db.collection("settings").doc("stt_counter");
+        }
+
+        // Danh sách sản phẩm và lịch sử in
+        let products = [];
+        let selectedIndex = -1;
+        let printHistory = [];
+        let selectedHistoryIds = new Set();
+
+        // ==================== LOAD/RESET SỐ THỨ TỰ IN ====================
+        async function loadLastSTT() {
+            if (!counterRef) return;
+            try {
+                const doc = await counterRef.get();
+                if (doc.exists) {
+                    document.getElementById('sttDau').value = doc.data().lastSTT || 1;
+                } else {
+                    await counterRef.set({ lastSTT: 1 });
+                }
+            } catch (e) { console.error(e); }
+            updateSttCuoi();
+        }
+
+        async function saveLastSTT(newSTT) {
+            if (!counterRef) return;
+            try { await counterRef.set({ lastSTT: newSTT }); } catch (e) {}
+        }
+
+        // ==================== TẢI DỮ LIỆU SẢN PHẨM TỪ FIREBASE ====================
+        function loadProductsFromFirebase() {
+            if (!db) return;
+            db.collection("thanhpham").orderBy("stt").onSnapshot((snapshot) => {
+                products = [];
+                snapshot.forEach((doc) => {
+                    products.push({ id: doc.id, ...doc.data() });
+                });
+                populateGrid();
+            });
+        }
+
+        // ==================== TẢI LỊCH SỬ IN TEM ====================
+        function loadPrintHistory() {
+            if (!db) return;
+            db.collection("printHistory").orderBy("timestamp", "desc").onSnapshot((snapshot) => {
+                printHistory = [];
+                let total = 0;
+                snapshot.forEach(doc => {
+                    const data = doc.data();
+                    data.id = doc.id;
+                    printHistory.push(data);
+                    total += (data.soLuong || 0);
+                });
+
+                document.getElementById('totalTem').textContent = total.toLocaleString('vi-VN');
+                document.getElementById('lastSTT').textContent = printHistory.length ? printHistory[0].sttCuoi : 0;
+                document.getElementById('temHong').textContent = "0";
+                document.getElementById('lastUpdate').textContent = printHistory.length ? 
+                    new Date(printHistory[0].timestamp?.toDate() || Date.now()).toLocaleString('vi-VN') : "Chưa có";
+
+                renderHistoryTable();
+            });
+        }
+
+        // ==================== HIỂN THỊ BẢNG LỊCH SỬ ====================
+        function renderHistoryTable() {
+            let html = `
+                <thead class="bg-gray-50 sticky top-0">
+                    <tr>
+                        <th class="px-4 py-3 text-center w-10"><input type="checkbox" id="headerCheckbox" onchange="toggleAllCheckboxes(this)"></th>
+                        <th class="px-4 py-3 text-left">Thời gian</th>
+                        <th class="px-4 py-3 text-left">Mã Lot</th>
+                        <th class="px-4 py-3 text-left">SKU</th>
+                        <th class="px-4 py-3 text-left">Tên TP</th>
+                        <th class="px-4 py-3 text-center">Số lượng</th>
+                        <th class="px-4 py-3 text-right">Quy Cách</th>
+                        <th class="px-4 py-3 text-right">Tổng KL (kg)</th>
+                    </tr>
+                </thead>
+                <tbody>`;
+            
+            printHistory.forEach(item => {
+                const kg = parseFloat(item.quyCach) || 20;
+                const tongKL = (item.soLuong * kg).toFixed(0);
+                const isChecked = selectedHistoryIds.has(item.id);
+                
+                html += `
+                    <tr class="border-b hover:bg-gray-50" data-id="${item.id}">
+                        <td class="px-4 py-3 text-center">
+                            <input type="checkbox" class="history-checkbox" 
+                                   onchange="toggleHistorySelection('${item.id}', this)"
+                                   ${isChecked ? 'checked' : ''}>
+                        </td>
+                        <td class="px-4 py-3 text-xs">${new Date(item.timestamp?.toDate() || item.timestamp).toLocaleString('vi-VN')}</td>
+                        <td class="px-4 py-3 font-mono">${item.maBTP || ''}</td>
+                        <td class="px-4 py-3 font-mono">${item.sku || ''}</td>
+                        <td class="px-4 py-3">${item.tenTP || ''}</td>
+                        <td class="px-4 py-3 text-center font-semibold">${item.soLuong || 0}</td>
+                        <td class="px-4 py-3 text-right">${item.quyCach}</td>
+                        <td class="px-4 py-3 text-right font-bold">${tongKL} kg</td>
+                    </tr>`;
+            });
+            html += `</tbody>`;
+            document.getElementById('historyTable').innerHTML = html;
+        }
+
+        function toggleHistorySelection(id, checkbox) {
+            if (checkbox.checked) {
+                selectedHistoryIds.add(id);
+            } else {
+                selectedHistoryIds.delete(id);
+            }
+        }
+
+        function toggleAllCheckboxes(headerCheckbox) {
+            const checkboxes = document.querySelectorAll('.history-checkbox');
+            checkboxes.forEach(cb => {
+                cb.checked = headerCheckbox.checked;
+                const id = cb.closest('tr').dataset.id;
+                if (headerCheckbox.checked) selectedHistoryIds.add(id);
+                else selectedHistoryIds.delete(id);
+            });
+        }
+
+        function toggleSelectAll() {
+            const header = document.getElementById('headerCheckbox');
+            if (header) {
+                header.checked = !header.checked;
+                toggleAllCheckboxes(header);
+            }
+        }
+
+        // ==================== IN LẠI TỪ LỊCH SỬ ====================
+        function reprintFromHistory() {
+            if (selectedHistoryIds.size === 0) {
+                alert("Vui lòng tích chọn ít nhất một bản ghi để in lại!");
+                return;
+            }
+            if (selectedHistoryIds.size > 1) {
+                alert("Chỉ hỗ trợ in lại một bản ghi một lúc. Vui lòng chọn duy nhất 1 item.");
+                return;
+            }
+
+            const id = Array.from(selectedHistoryIds)[0];
+            const item = printHistory.find(p => p.id === id);
+            if (!item) {
+                alert("Không tìm thấy dữ liệu!");
+                return;
+            }
+
+            switchTab(0);
+
+            document.getElementById('maBTP').value = item.maBTP || '';
+            document.getElementById('sku').value = item.sku || '';
+            document.getElementById('tenTP').value = item.tenTP || '';
+            document.getElementById('quyCach').value = item.quyCach || '20kg';
+            document.getElementById('sttDau').value = item.sttDau || 1;
+            document.getElementById('soLuongTem').value = item.soLuong || 1;
+            updateSttCuoi();
+            updatePreview();
+
+            setTimeout(() => {
+                alert(`✅ Đã load thông tin in lại cho STT ${item.sttDau || ''} - ${item.sttCuoi || ''}\nHãy bấm nút "IN LẠI" màu cam để in lại.`);
+            }, 400);
+        }
+
+        // ==================== XÓA BẢN GHI ĐÃ CHỌN ====================
+        async function deleteSelectedHistory() {
+            if (!db) return;
+            if (selectedHistoryIds.size === 0) {
+                alert("Vui lòng tích chọn ít nhất một bản ghi để xóa!");
+                return;
+            }
+            if (!confirm(`Bạn có chắc muốn xóa ${selectedHistoryIds.size} bản ghi lịch sử?`)) return;
+
+            try {
+                const batch = db.batch();
+                selectedHistoryIds.forEach(id => {
+                    batch.delete(db.collection("printHistory").doc(id));
+                });
+                await batch.commit();
+                alert(`✅ Đã xóa ${selectedHistoryIds.size} bản ghi!`);
+                selectedHistoryIds.clear();
+            } catch (error) {
+                alert("Lỗi: " + error.message);
+            }
+        }
+
+        // ==================== XUẤT BÁO CÁO RA EXCEL ====================
+        function exportReportExcel() {
+            if (printHistory.length === 0) return alert("Chưa có dữ liệu!");
+            const data = printHistory.map(item => ({
+                "Thời gian": new Date(item.timestamp?.toDate() || item.timestamp).toLocaleString('vi-VN'),
+                "Mã Lot": item.maBTP,
+                "SKU": item.sku,
+                "Tên Thành Phẩm": item.tenTP,
+                "Số lượng tem": item.soLuong,
+                "Quy Cách": item.quyCach,
+                "Tổng khối lượng (kg)": item.soLuong * (parseFloat(item.quyCach) || 20)
+            }));
+            const ws = XLSX.utils.json_to_sheet(data);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "BaoCao");
+            XLSX.writeFile(wb, `BaoCao_In_${new Date().toISOString().slice(0,10)}.xlsx`);
+        }
+
+        // ==================== GHI LỊCH SỬ IN TEM ====================
+        function logPrint() {
+            if (!db) return;
+            const data = {
+                maBTP: document.getElementById('maBTP').value || '',
+                sku: document.getElementById('sku').value || '',
+                tenTP: document.getElementById('tenTP').value || '',
+                quyCach: document.getElementById('quyCach').value || '20kg',
+                soLuong: parseInt(document.getElementById('soLuongTem').value) || 1,
+                sttDau: parseInt(document.getElementById('sttDau').value),
+                sttCuoi: parseInt(document.getElementById('sttCuoi').value),
+                timestamp: firebase.firestore.FieldValue.serverTimestamp()
+            };
+            db.collection("printHistory").add(data);
+        }
+
+        // ... (các hàm importExcel, populateGrid, updatePreview, updateSttCuoi, resetSTT, switchTab giữ nguyên)
+
+        // ==================== IN NHÃN THỰC TẾ ====================
+        function printLabels(isReprint = false) {
+            const sttDau = parseInt(document.getElementById('sttDau').value) || 1;
+            const sttCuoi = parseInt(document.getElementById('sttCuoi').value) || 1;
+            const count = Math.max(1, sttCuoi - sttDau + 1);
+
+            let printContent = `
+                <style>
+                    @page { size: 90mm 60mm; margin: 0mm !important; }
+                    body { margin: 0 !important; padding: 0 !important; font-family: Tahoma, Arial, sans-serif; font-weight: 700; letter-spacing: -0.2px; }
+                    .label { width: 90mm; height: 60mm; padding: 1.2mm 3.5mm 1.8mm 3.5mm; box-sizing: border-box; page-break-after: always; font-size: 9.0pt; line-height: 1.15; }
+                </style>
+            `;
+
+            const base = document.getElementById('previewLabel').innerHTML;
+            for (let i = 0; i < count; i++) {
+                let html = base.replace(/5200/g, sttDau + i);
+                printContent += `<div class="label">${html}</div>`;
+            }
+
+            const win = window.open('', '_blank');
+            win.document.write(`<html><head><title>${isReprint ? 'In Lại' : 'In Nhãn'}</title></head><body>${printContent}</body></html>`);
+            win.document.close();
+            setTimeout(() => win.print(), 600);
+
+            if (!isReprint) {
+                logPrint();
+                const nextSTT = sttCuoi + 1;
+                document.getElementById('sttDau').value = nextSTT;
+                saveLastSTT(nextSTT);
+                updateSttCuoi();
+            } else {
+                alert(`✅ Đã in lại ${count} tem (KHÔNG ghi log - KHÔNG tăng tổng số lượng)`);
+            }
+        }
+
+        
+        // ==================== IMPORT DỮ LIỆU TỪ EXCEL ====================
+        async function importExcel(input) {
+            if (!db) return;
+            const file = input.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = async (e) => {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { header: 1 });
+
+                    const newProducts = [];
+                    for (let i = 1; i < jsonData.length; i++) {
+                        const row = jsonData[i];
+                        if (!row[1]) continue;
+                        newProducts.push({
+                            stt: parseInt(row[0]) || i,
+                            maSP: String(row[1]).trim(),
+                            tenTP: String(row[2] || '').trim(),
+                            timestamp: new Date().toISOString()
+                        });
+                    }
+
+                    if (newProducts.length === 0) return alert("Không tìm thấy dữ liệu!");
+                    if (confirm(`Import ${newProducts.length} sản phẩm?`)) {
+                        for (const p of newProducts) {
+                            await db.collection("thanhpham").add(p);
+                        }
+                        alert(`✅ Import thành công!`);
+                    }
+                } catch (err) {
+                    alert("Lỗi: " + err.message);
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        // ==================== HIỂN THỊ DANH SÁCH SẢN PHẨM ====================
+        function populateGrid() {
+            const tbody = document.getElementById('gridBody');
+            tbody.innerHTML = '';
+            if (products.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="3" class="text-center py-8 text-gray-500">Chưa có dữ liệu.</td></tr>`;
+                return;
+            }
+            products.forEach((prod, i) => {
+                const tr = document.createElement('tr');
+                tr.className = 'cursor-pointer border-b hover:bg-gray-50';
+                tr.innerHTML = `<td class="px-4 py-3">${prod.stt || ''}</td>
+                                <td class="px-4 py-3 font-mono">${prod.maSP || ''}</td>
+                                <td class="px-4 py-3">${prod.tenTP || ''}</td>`;
+                tr.onclick = () => selectRow(i, tr);
+                tbody.appendChild(tr);
+            });
+        }
+
+        // ==================== CHỌN DÒNG SẢN PHẨM ====================
+        function selectRow(index, row) {
+            document.querySelectorAll('#dataGrid tr').forEach(r => r.classList.remove('selected'));
+            row.classList.add('selected');
+            selectedIndex = index;
+            const p = products[index];
+            document.getElementById('sku').value = p.maSP || '';
+            document.getElementById('tenTP').value = p.tenTP || '';
+            updatePreview();
+        }
+
+        // ==================== LOAD DỮ LIỆU TỪ BẢNG ====================
+        function loadFromGrid() {
+            if (selectedIndex < 0) return alert("Vui lòng click vào một dòng!");
+            alert("Đã load dữ liệu!");
+        }
+
+        // ==================== TÌM KIẾM TRONG DANH SÁCH ====================
+        function filterGrid() {
+            const term = document.getElementById('searchInput').value.toLowerCase();
+            document.querySelectorAll('#dataGrid tr').forEach(row => {
+                row.style.display = row.textContent.toLowerCase().includes(term) ? '' : 'none';
+            });
+        }
+
+        // ==================== XÁC ĐỊNH VÙNG NGUYÊN LIỆU TỪ LOT ====================
+        function getRegionFromLot(lot) {
+            if (!lot) return null;
+            const upperLot = lot.toUpperCase();
+            if (upperLot.includes('BP')) return 'BP';
+            if (upperLot.includes('DN')) return 'DN';
+            if (upperLot.includes('DL')) return 'DL';
+            if (upperLot.includes('MT')) return 'MT';
+            return null;
+        }
+
+        // ==================== CẬP NHẬT XEM TRƯỚC NHÃN ====================
+        function updatePreview() {
+            const preview = document.getElementById('previewLabel');
+            const sku = document.getElementById('sku').value || 'TP101020203.01.001';
+            const maBTP = document.getElementById('maBTP').value || 'D009MT15066-02-0K';
+            const tenTP = document.getElementById('tenTP').value || 'TP CẤP ĐÔNG SẦU RIÊNG...';
+            const quyCach = document.getElementById('quyCach').value || '20kg';
+            const regionFromLot = getRegionFromLot(maBTP);
+            const regionSelect = document.getElementById('vungNguyenLieu');
+            if (regionFromLot && regionSelect && regionSelect.value !== regionFromLot) {
+                regionSelect.value = regionFromLot;
+            }
+            const vungCode = regionSelect ? regionSelect.value : 'MT';
+            const vungFull = vungCode === 'BP' ? 'Bình Phước' : vungCode === 'DN' ? 'Đồng Nai' : vungCode === 'DL' ? 'DakLak' : 'Miền Tây';
+            const ngaySX = document.getElementById('ngaySX').value ? 
+                document.getElementById('ngaySX').value.split('-').reverse().join('/') : '22/06/2026';
+            const ngayDG = document.getElementById('ngayDG').value ? 
+                document.getElementById('ngayDG').value.split('-').reverse().join('/') : ngaySX;
+
+            preview.innerHTML = `
+                <div style="font-family: Tahoma, Arial, sans-serif; font-size: 9.0pt; font-weight: 700; line-height: 1.15; padding: 3px 5px; height: 100%; letter-spacing: -0.2px;">
+                    <div style="display: flex; justify-content: space-between; font-weight: 700; margin-bottom: 3px; font-size: 7.8pt;">
+                        <div>SKU: ${sku}</div>
+                        <div>Lot: ${maBTP}</div>
+                    </div>
+                    <div style="font-size: 12.8pt; font-weight: 800; text-align: center; margin: 4px 0 6px; line-height: 1.05;">
+                        ${tenTP}
+                    </div>
+                    <hr style="border: 1px solid #000; margin: 3px 0 5px;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
+                        <div><strong>Quy Cách /SPEC</strong><br>Thùng/túi: ${quyCach}</div>
+                        <div style="text-align: right;"><strong>KHỐI LƯỢNG /WEIGHT</strong><br>${quyCach}</div>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
+                        <div><strong>KHÁCH HÀNG/CUSTOMER</strong><br>CHANH THU GROUP</div>
+                        <div style="text-align: right;">
+                            <strong>STT/INDEX</strong><br>
+                            <span style="font-size: 15.8pt; font-weight: 800;">5200</span>
+                        </div>
+                    </div>
+                    <div style="margin-bottom: 3px; font-weight: 700;"><strong>VÙNG NGUYÊN LIỆU</strong><br>${vungFull}</div>
+                    <div style="display: flex; justify-content: space-between; font-size: 9.0pt; margin-top: 5px;">
+                        <div>Ngày SX: ${ngaySX}</div>
+                        <div>Ngày ĐG: ${ngayDG}</div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // ==================== TÍNH STT CUỐI ====================
+        function updateSttCuoi() {
+            const sttDau = parseInt(document.getElementById('sttDau').value) || 1;
+            const soLuong = parseInt(document.getElementById('soLuongTem').value) || 1;
+            document.getElementById('sttCuoi').value = sttDau + soLuong - 1;
+        }
+
+        // ==================== RESET STT ====================
+        function resetSTT() {
+            const password = prompt("Nhập mật khẩu để Reset STT:");
+            if (password === (runtimeConfig.resetPassword || '')) {
+                if (confirm("Reset STT về 1?")) {
+                    document.getElementById('sttDau').value = 1;
+                    document.getElementById('soLuongTem').value = 1;
+                    saveLastSTT(1);
+                    updateSttCuoi();
+                    alert("Đã reset STT thành công!");
+                }
+            } else if (password) {
+                alert("Mật khẩu sai!");
+            }
+        }
+
+        // ==================== CHUYỂN TAB ====================
+        function switchTab(tab) {
+            document.getElementById('content0').classList.toggle('hidden', tab !== 0);
+            document.getElementById('content1').classList.toggle('hidden', tab !== 1);
+            
+            document.getElementById('tab0').classList.toggle('border-blue-600', tab === 0);
+            document.getElementById('tab0').classList.toggle('text-blue-600', tab === 0);
+            document.getElementById('tab1').classList.toggle('border-blue-600', tab === 1);
+            document.getElementById('tab1').classList.toggle('text-blue-600', tab === 1);
+        }
+
+        // ==================== KHỞI TẠO KHI TRANG MỞ ====================
+        window.onload = async () => {
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('ngaySX').value = today;
+            document.getElementById('ngayDG').value = today;
+
+            await initFirebase();
+            loadLastSTT();
+            loadPrintHistory();
+            setTimeout(() => {
+                loadProductsFromFirebase();
+                updatePreview();
+            }, 800);
+        };
+    </script>
+</body>
+</html>

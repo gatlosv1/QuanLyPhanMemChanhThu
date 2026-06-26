@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Xem Thông Tin Lô Hàng - Quản Lý Trái Cây</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body class="page-viewer">
+  <script src="auth.js"></script>
+  <script>
+    if (!requirePageAccess('viewer.html')) {
+      document.write('');
+    }
+  </script>
+  <div class="container">
+    <header><h1>📋 Thông Tin Lô Hàng</h1><button class="logout-btn" onclick="logoutUser()">Đăng xuất</button></header>
+    
+    <div class="content">
+      <div id="loading" class="viewer-loading">Đang tải thông tin...</div>
+
+      <div id="result" class="viewer-result-hidden">
+        <div class="ma-lo" id="maLoDisplay"></div>
+        <div class="info-grid">
+          <div class="info-item"><div class="label">Ngày Nhập</div><div class="value" id="ngayDisplay"></div></div>
+          <div class="info-item"><div class="label">Biển Số Xe</div><div class="value" id="biensoDisplay"></div></div>
+          <div class="info-item"><div class="label">Kho</div><div class="value" id="khoDisplay"></div></div>
+          <div class="info-item"><div class="label">TT Xe</div><div class="value" id="ttxeDisplay"></div></div>
+          <div class="info-item"><div class="label">Tổng Khối Lượng</div><div class="value" id="tongklDisplay"></div></div>
+          <div class="info-item"><div class="label">Nhà Cung Cấp</div><div class="value" id="nccDisplay"></div></div>
+          <div class="info-item"><div class="label">Nơi Xuất Sản</div><div class="value" id="noiDisplay"></div></div>
+          <div class="info-item"><div class="label">Hàng</div><div class="value" id="hangDisplay"></div></div>
+          <div class="info-item"><div class="label">Múi</div><div class="value" id="muiDisplay"></div></div>
+          <div class="info-item"><div class="label">Vị Trí</div><div class="value" id="vitriDisplay"></div></div>
+        </div>
+
+        <div class="viewer-actions">
+          <button class="scan-btn" onclick="startScanOnViewer()">📷 Quét QR Mới</button>
+        </div>
+      </div>
+
+      <div id="error" class="viewer-error-hidden">
+        Không tìm thấy thông tin cho mã QR này.
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Quét QR -->
+  <div id="scanModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>📷 Quét Mã QR Code</h3>
+        <span onclick="closeScanModal()" class="close-btn">&times;</span>
+      </div>
+      <div id="reader"></div>
+      <div id="scanResult" style="text-align:center; padding:15px; min-height:50px;"></div>
+    </div>
+  </div>
+
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+
+  <script>
+    // ... (phần firebase và loadQRInfo giữ nguyên như trước) ...
+
+    (async () => {
+      window.__APP_SETTINGS = await window.getRuntimeConfig();
+      const firebaseConfig = window.__APP_SETTINGS || {};
+      firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+    const historyRef = db.ref('qrHistory');
+
+    let html5QrCode = null;
+
+    async function loadQRInfo(maLo) {
+      // ... (giữ nguyên hàm loadQRInfo trước đó của bạn) ...
+      const loading = document.getElementById('loading');
+      const result = document.getElementById('result');
+      const error = document.getElementById('error');
+
+      loading.style.display = 'block';
+      result.style.display = 'none';
+      error.style.display = 'none';
+
+      try {
+        const snapshot = await historyRef.once('value');
+        const data = snapshot.val();
+        let item = data ? Object.values(data).find(h => h.ma_lo === maLo) : null;
+
+        if (item) {
+          document.getElementById('maLoDisplay').textContent = item.ma_lo || maLo;
+          document.getElementById('ngayDisplay').textContent = item.ngay_display || 'Không có';
+          document.getElementById('biensoDisplay').textContent = item.bienso && item.bienso.trim() !== '' ? item.bienso : 'Không có';
+
+          let khoList = [];
+          if (item.kho1 && item.kho1.trim() !== '') khoList.push(item.kho1);
+          if (item.kho2 && item.kho2.trim() !== '') khoList.push(item.kho2);
+          if (item.kho3 && item.kho3.trim() !== '') khoList.push(item.kho3);
+          if (item.kho4 && item.kho4.trim() !== '') khoList.push(item.kho4);
+
+          document.getElementById('khoDisplay').textContent = khoList.length ? khoList.join(' - ') : 'Không có';
+
+          document.getElementById('tongklDisplay').textContent = item.tongkl ? item.tongkl + ' kg' : 'Không có';
+          document.getElementById('ttxeDisplay').textContent = item.ttxe || '—';
+          document.getElementById('nccDisplay').textContent = item.ncc || '—';
+          document.getElementById('noiDisplay').textContent = item.noi || '—';
+          document.getElementById('hangDisplay').textContent = item.hang || '—';
+          document.getElementById('muiDisplay').textContent = item.mui || '—';
+          document.getElementById('vitriDisplay').textContent = 
+            (item.vitri1 && item.vitri2) ? `${item.vitri1}/${item.vitri2}` : (item.vitri1 || '—');
+          
+          result.style.display = 'block';
+        } else {
+          document.getElementById('maLoDisplay').textContent = maLo;
+          document.getElementById('ngayDisplay').textContent = 'Không tìm thấy chi tiết';
+          document.getElementById('biensoDisplay').textContent = '—';
+          document.getElementById('khoDisplay').textContent = '—';
+          result.style.display = 'block';
+        }
+      } catch (err) {
+        error.style.display = 'block';
+      } finally {
+        loading.style.display = 'none';
+      }
+    }
+
+    function startScanOnViewer() {
+      document.getElementById('scanModal').style.display = 'flex';
+      document.getElementById('scanResult').innerHTML = '';
+      startScanner();
+    }
+
+    function closeScanModal() {
+      stopScanner();
+      document.getElementById('scanModal').style.display = 'none';
+    }
+
+    function startScanner() {
+      if (html5QrCode) stopScanner();
+      html5QrCode = new Html5Qrcode("reader");
+
+      html5QrCode.start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: { width: 280, height: 280 } },
+        (decodedText) => {
+          stopScanner();
+          closeScanModal();
+          if (decodedText.includes('viewer.html')) {
+            window.location.href = decodedText;
+          } else {
+            window.location.href = `viewer.html?q=${encodeURIComponent(decodedText)}`;
+          }
+        },
+        () => {}
+      ).catch(err => {
+        alert("Không thể mở camera.\nVui lòng cho phép quyền Camera trong trình duyệt.");
+        closeScanModal();
+      });
+    }
+
+    function stopScanner() {
+      if (html5QrCode) {
+        html5QrCode.stop().catch(() => {});
+        html5QrCode = null;
+      }
+    }
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const maLo = urlParams.get('q');
+
+    if (maLo) loadQRInfo(maLo);
+    else document.getElementById('loading').innerHTML = `<p style="color:red;">Không có mã QR.<br>Vui lòng truy cập: <strong>viewer.html?q=MÃ_LÔ</strong></p>`;
+  </script>
+</body>
+</html>

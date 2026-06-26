@@ -1,0 +1,627 @@
+/* ===== Phần in nhãn QR ===== */
+@media print {
+  @page {
+    size: 90mm 55mm;
+    margin: 0;
+  }
+
+  html, body {
+    width: 90mm;
+    height: 55mm;
+    margin: 0;
+    overflow: hidden;
+  }
+
+  body * {
+    visibility: hidden;
+  }
+
+  #print-area,
+  #print-area * {
+    visibility: visible;
+  }
+
+  #print-area {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 90mm;
+    height: 55mm;
+    padding: 4mm;
+    box-sizing: border-box;
+    background: #fff;
+  }
+
+  /* QR bên trái */
+  #qrcode {
+    position: absolute;
+    left: 4mm;
+    top: 4mm;
+    width: 35mm !important;
+    height: 35mm !important;
+  }
+
+  #qrcode canvas,
+  #qrcode img {
+    width: 35mm !important;
+    height: 35mm !important;
+  }
+
+  /* Chỉ hiển thị Ngày và Tổng KL */
+  #qtext div:nth-child(2),
+  #qtext div:nth-child(3) {
+    margin-left: 42mm;
+    margin-top: 8mm;
+    font-size: 15px;
+    font-weight: normal;
+  }
+
+  #qtext div:nth-child(3) {
+    margin-top: 6px;
+  }
+
+  /* Mã lô phía dưới */
+  #qtext div:first-child {
+    position: absolute;
+    bottom: 5mm;
+    left: 0;
+    width: 100%;
+    text-align: center;
+    font-size: 16px;
+    font-weight: bold;
+  }
+
+  /* Ẩn các thông tin thừa */
+  #qtext div:not(:first-child):not(:nth-child(2)):not(:nth-child(3)) {
+    display: none !important;
+  }
+}
+
+/* ===== Trang tạo QR ===== */
+body {
+  font-family: Arial, sans-serif;
+  background: #eef2f7;
+  margin: 0;
+}
+
+header {
+  background: #fff;
+  padding: 12px 16px;
+  border-bottom: 1px solid #ddd;
+  position: relative;
+}
+
+.clock {
+  position: absolute;
+  right: 16px;
+  top: 12px;
+  background: #f7f9ff;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-weight: 600;
+}
+
+.wrapper {
+  display: flex;
+  gap: 18px;
+  padding: 18px;
+}
+
+.left {
+  width: 520px;
+  background: #fff;
+  padding: 18px;
+  border-radius: 8px;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.06);
+}
+
+.right {
+  flex: 1;
+  background: #fff;
+  padding: 18px;
+  border-radius: 8px;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.06);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.tabs {
+  display: flex;
+  margin-bottom: 15px;
+  border-bottom: 2px solid #ddd;
+}
+
+.tab {
+  padding: 12px 24px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.tab.active {
+  color: #0066ff;
+  border-bottom: 3px solid #0066ff;
+}
+
+.form-row {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 12px;
+  align-items: center;
+}
+
+label {
+  width: 110px;
+  font-size: 14px;
+}
+
+input[type=text], select, input[type=date] {
+  flex: 1;
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid #ccd0d8;
+}
+
+input[type=date]:disabled {
+  background: #f0f0f0;
+  color: #333;
+  cursor: not-allowed;
+}
+
+.buttons {
+  display: flex;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+button {
+  padding: 10px 18px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  background: #f0f0f0;
+}
+
+button.primary {
+  background: #0066ff;
+  color: #fff;
+}
+
+button.print-btn {
+  background: #28a745;
+  color: white;
+  font-size: 13px;
+  padding: 6px 14px;
+}
+
+button.export-btn {
+  background: #17a2b8;
+  color: white;
+}
+
+button.import-btn {
+  background: #ffc107;
+  color: black;
+}
+
+button.delete-all-btn {
+  background: #dc3545;
+  color: white;
+}
+
+#qrcode {
+  width: 320px;
+  height: 320px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px dashed #ddd;
+  background: white;
+}
+
+.history-list {
+  max-height: 520px;
+  overflow-y: auto;
+}
+
+.history-item {
+  padding: 12px;
+  border-bottom: 1px solid #eee;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.history-item:hover {
+  background: #f8f9ff;
+}
+
+.note {
+  font-size: 12px;
+  color: #666;
+  margin-top: 8px;
+}
+
+.history-actions {
+  margin: 10px 0;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+#qtext div {
+  margin: 6px 0;
+  font-size: 15.5px;
+}
+
+button.delete-btn {
+  background: #dc3545;
+  color: white;
+  font-size: 13px;
+  padding: 6px 12px;
+}
+
+button.delete-btn:hover {
+  background: #c82333;
+}
+
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0,0,0,0.7);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-content {
+  background: white;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 450px;
+  padding: 10px;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 15px;
+  border-bottom: 1px solid #ddd;
+}
+
+/* ===== Trang đăng nhập ===== */
+.page-login {
+  font-family: Arial, sans-serif;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  margin: 0;
+  background: #f4f4f8;
+}
+
+.page-login .login-card {
+  width: 320px;
+  padding: 24px;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 16px 40px rgba(0,0,0,0.08);
+}
+
+.page-login .login-card h1 {
+  margin-top: 0;
+  font-size: 24px;
+}
+
+.page-login .login-card label {
+  display: block;
+  margin: 12px 0 4px;
+  font-size: 14px;
+}
+
+.page-login .login-card input {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ccd0d8;
+  border-radius: 8px;
+  box-sizing: border-box;
+}
+
+.page-login .login-card button {
+  width: 100%;
+  padding: 12px;
+  margin-top: 18px;
+  background: #0066ff;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+.page-login .login-card button:hover {
+  background: #0051d4;
+}
+
+.login-message {
+  color: #d8000c;
+  display: none;
+  margin-top: 12px;
+}
+
+/* ===== Trang quản lý ===== */
+.logout-btn {
+  position: absolute;
+  right: 16px;
+  top: 16px;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 8px;
+  background: #dc3545;
+  color: white;
+  cursor: pointer;
+}
+
+.page-manager {
+  font-family: Arial, sans-serif;
+  margin: 0;
+  padding: 0;
+  background: #f0f2f7;
+}
+
+.page-manager header {
+  background: #0066ff;
+  color: #fff;
+  padding: 20px;
+  text-align: center;
+}
+
+.page-manager .container {
+  max-width: 980px;
+  margin: 24px auto;
+  padding: 0 16px;
+}
+
+.page-manager .card {
+  background: #fff;
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 12px 24px rgba(0,0,0,0.08);
+}
+
+.page-manager .card h2 {
+  margin-top: 0;
+}
+
+.page-manager .table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 18px;
+}
+
+.page-manager .table th,
+.page-manager .table td {
+  text-align: left;
+  padding: 12px 10px;
+  border-bottom: 1px solid #e2e6ef;
+}
+
+.page-manager .table th {
+  background: #f7f9ff;
+}
+
+.page-manager .actions button {
+  margin-right: 8px;
+  padding: 8px 14px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.page-manager .actions button.edit {
+  background: #28a745;
+  color: #fff;
+}
+
+.page-manager .actions button.delete {
+  background: #dc3545;
+  color: #fff;
+}
+
+/* ===== Trang xem thông tin ===== */
+.page-viewer {
+  font-family: Arial, sans-serif;
+  background: #f4f7fa;
+  margin: 0;
+  padding: 20px;
+  line-height: 1.6;
+}
+
+.page-viewer .container {
+  max-width: 700px;
+  margin: 40px auto;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+  overflow: hidden;
+}
+
+.page-viewer header {
+  background: #0066ff;
+  color: white;
+  padding: 20px;
+  text-align: center;
+}
+
+.page-viewer .content {
+  padding: 30px;
+}
+
+.page-viewer .info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 15px;
+}
+
+.page-viewer .info-item {
+  background: #f8f9ff;
+  padding: 12px 16px;
+  border-radius: 8px;
+  border-left: 4px solid #0066ff;
+}
+
+.page-viewer .label {
+  font-size: 13px;
+  color: #666;
+  margin-bottom: 4px;
+}
+
+.page-viewer .value {
+  font-size: 17px;
+  font-weight: 600;
+  color: #333;
+}
+
+.page-viewer .ma-lo {
+  font-size: 22px;
+  font-weight: bold;
+  color: #0066ff;
+  text-align: center;
+  padding: 15px;
+  background: #f0f4ff;
+  border-radius: 8px;
+  margin: 20px 0;
+}
+
+.page-viewer button {
+  padding: 12px 24px;
+  background: #0066ff;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  cursor: pointer;
+  margin: 5px;
+}
+
+.page-viewer .scan-btn {
+  background: #28a745;
+}
+
+.page-viewer .modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0,0,0,0.85);
+  z-index: 2000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+}
+
+.page-viewer .modal-content {
+  background: white;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 420px;
+  overflow: hidden;
+}
+
+.page-viewer .modal-header {
+  padding: 15px 20px;
+  background: #f8f9fa;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid #ddd;
+}
+
+.page-viewer .close-btn {
+  font-size: 28px;
+  cursor: pointer;
+  color: #666;
+}
+
+.page-viewer #reader {
+  width: 100%;
+  min-height: 300px;
+  background: #000;
+}
+
+.viewer-loading {
+  text-align: center;
+  padding: 40px;
+}
+
+.viewer-result-hidden {
+  display: none;
+}
+
+.viewer-actions {
+  text-align: center;
+  margin-top: 30px;
+}
+
+.viewer-error-hidden {
+  display: none;
+  color: red;
+  text-align: center;
+  padding: 40px;
+}
+
+/* ===== Trang in nhãn thành phẩm ===== */
+.page-index {
+  font-family: Tahoma, Arial, sans-serif;
+  font-weight: 700;
+}
+
+.page-index .label-preview {
+  width: 90mm;
+  height: 60mm;
+  border: 3px solid #000;
+  background: white;
+  box-shadow: 0 10px 20px -3px rgb(0 0 0 / 0.2);
+  font-size: 9pt;
+  line-height: 1.15;
+  padding: 4px 5px;
+  letter-spacing: -0.2px;
+  margin: 0 auto;
+}
+
+.page-index .modal {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0,0,0,0.75);
+  z-index: 2000;
+  align-items: center;
+  justify-content: center;
+}
+
+.page-index .modal-content {
+  background: white;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 620px;
+  max-height: 85vh;
+  overflow: hidden;
+}
+
+.page-index .report-card {
+  background: linear-gradient(135deg, #1f2937, #111827);
+  color: white;
+  border-radius: 16px;
+  padding: 24px;
+}
