@@ -13,9 +13,16 @@
       document.write('');
     }
   </script>
+
   <div class="container">
-    <header><h1>📋 Thông Tin Lô Hàng</h1><button class="logout-btn" onclick="logoutUser()">Đăng xuất</button></header>
-    
+    <header>
+      <h1>📋 Thông Tin Lô Hàng</h1>
+      <div>
+        <button class="scan-btn" onclick="startScanOnViewer()">📷 Quét QR</button>
+        <button class="logout-btn" onclick="logoutUser()">Đăng xuất</button>
+      </div>
+    </header>
+
     <div class="content">
       <div id="loading" class="viewer-loading">Đang tải thông tin...</div>
 
@@ -45,7 +52,6 @@
     </div>
   </div>
 
-  <!-- Modal Quét QR -->
   <div id="scanModal" class="modal">
     <div class="modal-content">
       <div class="modal-header">
@@ -53,6 +59,16 @@
         <span onclick="closeScanModal()" class="close-btn">&times;</span>
       </div>
       <div id="reader"></div>
+      <div style="text-align:center; padding:12px 15px; color:#666; font-size:14px;">
+        Nếu camera không mở được, bạn có thể chọn ảnh QR từ máy.
+      </div>
+      <div style="display:flex; justify-content:center; gap:10px; padding:0 15px 15px;">
+        <label style="display:inline-flex; align-items:center; justify-content:center; padding:10px 14px; border-radius:8px; background:#0d6efd; color:white; cursor:pointer; font-weight:600;">
+          📁 Chọn ảnh QR
+          <input id="qrImageInput" type="file" accept="image/*" style="display:none;">
+        </label>
+        <button onclick="closeScanModal()" style="padding:10px 14px; border:none; border-radius:8px; background:#6c757d; color:white; cursor:pointer; font-weight:600;">Đóng</button>
+      </div>
       <div id="scanResult" style="text-align:center; padding:15px; min-height:50px;"></div>
     </div>
   </div>
@@ -62,115 +78,174 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
 
   <script>
-    // ... (phần firebase và loadQRInfo giữ nguyên như trước) ...
+    const FALLBACK_FIREBASE_CONFIG = {
+      apiKey: 'AIzaSyCtmyLlGJuCn35kYR6819XbaP6665KKgd8',
+      authDomain: 'quanlysaurieng.firebaseapp.com',
+      databaseURL: 'https://quanlysaurieng-default-rtdb.asia-southeast1.firebasedatabase.app',
+      projectId: 'quanlysaurieng'
+    };
 
     (async () => {
-      window.__APP_SETTINGS = await window.getRuntimeConfig();
-      const firebaseConfig = window.__APP_SETTINGS || {};
-      firebase.initializeApp(firebaseConfig);
-    const db = firebase.database();
-    const historyRef = db.ref('qrHistory');
-
-    let html5QrCode = null;
-
-    async function loadQRInfo(maLo) {
-      // ... (giữ nguyên hàm loadQRInfo trước đó của bạn) ...
-      const loading = document.getElementById('loading');
-      const result = document.getElementById('result');
-      const error = document.getElementById('error');
-
-      loading.style.display = 'block';
-      result.style.display = 'none';
-      error.style.display = 'none';
-
+      let firebaseConfig = FALLBACK_FIREBASE_CONFIG;
       try {
-        const snapshot = await historyRef.once('value');
-        const data = snapshot.val();
-        let item = data ? Object.values(data).find(h => h.ma_lo === maLo) : null;
-
-        if (item) {
-          document.getElementById('maLoDisplay').textContent = item.ma_lo || maLo;
-          document.getElementById('ngayDisplay').textContent = item.ngay_display || 'Không có';
-          document.getElementById('biensoDisplay').textContent = item.bienso && item.bienso.trim() !== '' ? item.bienso : 'Không có';
-
-          let khoList = [];
-          if (item.kho1 && item.kho1.trim() !== '') khoList.push(item.kho1);
-          if (item.kho2 && item.kho2.trim() !== '') khoList.push(item.kho2);
-          if (item.kho3 && item.kho3.trim() !== '') khoList.push(item.kho3);
-          if (item.kho4 && item.kho4.trim() !== '') khoList.push(item.kho4);
-
-          document.getElementById('khoDisplay').textContent = khoList.length ? khoList.join(' - ') : 'Không có';
-
-          document.getElementById('tongklDisplay').textContent = item.tongkl ? item.tongkl + ' kg' : 'Không có';
-          document.getElementById('ttxeDisplay').textContent = item.ttxe || '—';
-          document.getElementById('nccDisplay').textContent = item.ncc || '—';
-          document.getElementById('noiDisplay').textContent = item.noi || '—';
-          document.getElementById('hangDisplay').textContent = item.hang || '—';
-          document.getElementById('muiDisplay').textContent = item.mui || '—';
-          document.getElementById('vitriDisplay').textContent = 
-            (item.vitri1 && item.vitri2) ? `${item.vitri1}/${item.vitri2}` : (item.vitri1 || '—');
-          
-          result.style.display = 'block';
-        } else {
-          document.getElementById('maLoDisplay').textContent = maLo;
-          document.getElementById('ngayDisplay').textContent = 'Không tìm thấy chi tiết';
-          document.getElementById('biensoDisplay').textContent = '—';
-          document.getElementById('khoDisplay').textContent = '—';
-          result.style.display = 'block';
+        const runtimeConfig = await window.getRuntimeConfig?.() || {};
+        if (runtimeConfig && Object.keys(runtimeConfig).length) {
+          firebaseConfig = runtimeConfig;
         }
-      } catch (err) {
-        error.style.display = 'block';
-      } finally {
-        loading.style.display = 'none';
+      } catch (error) {
+        console.warn('Không lấy được runtime config, dùng cấu hình dự phòng.', error);
       }
-    }
 
-    function startScanOnViewer() {
-      document.getElementById('scanModal').style.display = 'flex';
-      document.getElementById('scanResult').innerHTML = '';
-      startScanner();
-    }
+      if (!firebase.apps.some(app => app.name === '[DEFAULT]')) {
+        firebase.initializeApp(firebaseConfig);
+      }
 
-    function closeScanModal() {
-      stopScanner();
-      document.getElementById('scanModal').style.display = 'none';
-    }
+      const db = firebase.database();
+      const historyRef = db.ref('qrHistory');
+      let html5QrCode = null;
 
-    function startScanner() {
-      if (html5QrCode) stopScanner();
-      html5QrCode = new Html5Qrcode("reader");
+      async function loadQRInfo(maLo) {
+        const loading = document.getElementById('loading');
+        const result = document.getElementById('result');
+        const error = document.getElementById('error');
 
-      html5QrCode.start(
-        { facingMode: "environment" },
-        { fps: 10, qrbox: { width: 280, height: 280 } },
-        (decodedText) => {
-          stopScanner();
-          closeScanModal();
-          if (decodedText.includes('viewer.html')) {
-            window.location.href = decodedText;
+        loading.style.display = 'block';
+        result.style.display = 'none';
+        error.style.display = 'none';
+
+        try {
+          const snapshot = await historyRef.once('value');
+          const data = snapshot.val();
+          const item = data ? Object.values(data).find(h => h.ma_lo === maLo) : null;
+
+          if (item) {
+            document.getElementById('maLoDisplay').textContent = item.ma_lo || maLo;
+            document.getElementById('ngayDisplay').textContent = item.ngay_display || 'Không có';
+            document.getElementById('biensoDisplay').textContent = item.bienso && item.bienso.trim() !== '' ? item.bienso : 'Không có';
+
+            const khoList = [];
+            if (item.kho1 && item.kho1.trim() !== '') khoList.push(item.kho1);
+            if (item.kho2 && item.kho2.trim() !== '') khoList.push(item.kho2);
+            if (item.kho3 && item.kho3.trim() !== '') khoList.push(item.kho3);
+            if (item.kho4 && item.kho4.trim() !== '') khoList.push(item.kho4);
+
+            document.getElementById('khoDisplay').textContent = khoList.length ? khoList.join(' - ') : 'Không có';
+            document.getElementById('tongklDisplay').textContent = item.tongkl ? `${item.tongkl} kg` : 'Không có';
+            document.getElementById('ttxeDisplay').textContent = item.ttxe || '—';
+            document.getElementById('nccDisplay').textContent = item.ncc || '—';
+            document.getElementById('noiDisplay').textContent = item.noi || '—';
+            document.getElementById('hangDisplay').textContent = item.hang || '—';
+            document.getElementById('muiDisplay').textContent = item.mui || '—';
+            document.getElementById('vitriDisplay').textContent = (item.vitri1 && item.vitri2) ? `${item.vitri1}/${item.vitri2}` : (item.vitri1 || '—');
+            result.style.display = 'block';
           } else {
-            window.location.href = `viewer.html?q=${encodeURIComponent(decodedText)}`;
+            document.getElementById('maLoDisplay').textContent = maLo;
+            document.getElementById('ngayDisplay').textContent = 'Không tìm thấy chi tiết';
+            document.getElementById('biensoDisplay').textContent = '—';
+            document.getElementById('khoDisplay').textContent = '—';
+            result.style.display = 'block';
           }
-        },
-        () => {}
-      ).catch(err => {
-        alert("Không thể mở camera.\nVui lòng cho phép quyền Camera trong trình duyệt.");
-        closeScanModal();
-      });
-    }
-
-    function stopScanner() {
-      if (html5QrCode) {
-        html5QrCode.stop().catch(() => {});
-        html5QrCode = null;
+        } catch (error) {
+          console.error(error);
+          error.style.display = 'block';
+        } finally {
+          loading.style.display = 'none';
+        }
       }
-    }
 
-    const urlParams = new URLSearchParams(window.location.search);
-    const maLo = urlParams.get('q');
+      function startScanOnViewer() {
+        const modal = document.getElementById('scanModal');
+        const resultEl = document.getElementById('scanResult');
+        modal.style.display = 'flex';
+        resultEl.innerHTML = '';
+        document.getElementById('qrImageInput').value = '';
+        setTimeout(() => startScanner(), 250);
+      }
 
-    if (maLo) loadQRInfo(maLo);
-    else document.getElementById('loading').innerHTML = `<p style="color:red;">Không có mã QR.<br>Vui lòng truy cập: <strong>viewer.html?q=MÃ_LÔ</strong></p>`;
+      function closeScanModal() {
+        stopScanner();
+        document.getElementById('scanModal').style.display = 'none';
+      }
+
+      function handleScanResult(decodedText) {
+        stopScanner();
+        closeScanModal();
+        if (decodedText.includes('viewer.html')) {
+          window.location.href = decodedText;
+        } else {
+          window.location.href = `viewer.html?q=${encodeURIComponent(decodedText)}`;
+        }
+      }
+
+      function startScanner() {
+        const resultEl = document.getElementById('scanResult');
+        if (html5QrCode) {
+          stopScanner();
+        }
+        if (!window.Html5Qrcode) {
+          resultEl.innerHTML = '<div style="color:#d9534f;">Thư viện quét QR chưa sẵn sàng. Vui lòng tải lại trang.</div>';
+          return;
+        }
+
+        html5QrCode = new Html5Qrcode('reader');
+        resultEl.innerHTML = '<div style="color:#0d6efd;">Đang mở camera...</div>';
+
+        html5QrCode.start(
+          { facingMode: 'environment' },
+          { fps: 10, qrbox: { width: 280, height: 280 } },
+          (decodedText) => handleScanResult(decodedText),
+          () => {}
+        ).catch(() => {
+          resultEl.innerHTML = '<div style="color:#d9534f;">Không thể mở camera. Bạn có thể chọn ảnh QR từ máy.</div>';
+        });
+      }
+
+      function handleImageScan(file) {
+        if (!file) return;
+        if (!window.Html5Qrcode) {
+          document.getElementById('scanResult').innerHTML = '<div style="color:#d9534f;">Thư viện quét QR chưa sẵn sàng.</div>';
+          return;
+        }
+
+        const resultEl = document.getElementById('scanResult');
+        resultEl.innerHTML = '<div style="color:#0d6efd;">Đang đọc mã QR từ ảnh...</div>';
+        if (html5QrCode) {
+          stopScanner();
+        }
+        html5QrCode = new Html5Qrcode('reader');
+        html5QrCode.scanFile(file, true)
+          .then(decodedText => handleScanResult(decodedText))
+          .catch(() => {
+            resultEl.innerHTML = '<div style="color:#d9534f;">Không đọc được mã QR từ ảnh. Vui lòng thử ảnh khác.</div>';
+          });
+      }
+
+      function stopScanner() {
+        if (html5QrCode) {
+          html5QrCode.stop().catch(() => {});
+          html5QrCode = null;
+        }
+      }
+
+      document.getElementById('qrImageInput').addEventListener('change', event => {
+        const file = event.target.files && event.target.files[0];
+        if (file) {
+          handleImageScan(file);
+        }
+      });
+
+      window.startScanOnViewer = startScanOnViewer;
+      window.closeScanModal = closeScanModal;
+
+      const urlParams = new URLSearchParams(window.location.search);
+      const maLo = urlParams.get('q');
+
+      if (maLo) {
+        loadQRInfo(maLo);
+      } else {
+        document.getElementById('loading').innerHTML = '<p style="color:red;">Không có mã QR.<br>Vui lòng truy cập: <strong>viewer.html?q=MÃ_LÔ</strong></p>';
+      }
+    })();
   </script>
 </body>
 </html>
