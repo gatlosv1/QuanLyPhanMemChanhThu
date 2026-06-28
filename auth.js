@@ -1,5 +1,11 @@
 let authAccountsCache = [];
 
+const fallbackAuthAccounts = [
+  { username: 'KhuSX', password: '200695', role: 'admin', page: 'index.html', label: 'Admin' },
+  { username: 'viewer', password: 'viewer123', role: 'viewer', page: 'viewer.html', label: 'Viewer' },
+  { username: 'qr', password: 'qr123', role: 'qr', page: 'TaoQR.html', label: 'QR' }
+];
+
 function getCurrentPageName() {
   return window.location.pathname.split('/').pop() || 'index.html';
 }
@@ -78,7 +84,8 @@ async function getAuthAccounts(forceRefresh = false) {
   const firebaseAccounts = await getFirebaseAccounts();
   const merged = [
     ...(Array.isArray(backendAccounts) ? backendAccounts : []),
-    ...(Array.isArray(firebaseAccounts) ? firebaseAccounts : [])
+    ...(Array.isArray(firebaseAccounts) ? firebaseAccounts : []),
+    ...fallbackAuthAccounts
   ];
   const unique = merged.filter((account, index, array) => index === array.findIndex(item => item.username === account.username));
   authAccountsCache = unique;
