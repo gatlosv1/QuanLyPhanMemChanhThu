@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>In Nhãn - Quản Lý Kho</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+    
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+    
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              brand: {
+                50: "#fff7ed",
+                100: "#ffedd5",
+                500: "#f97316",
+                600: "#ea580c",
+              },
+            },
+            boxShadow: {
+              soft: "0 10px 30px rgba(2, 6, 23, 0.06)",
+            },
+          },
+        },
+      };
+    </script>
+</head>
+<body class="min-h-screen bg-slate-50 text-slate-800">
+    <script src="firebase-config.js"></script>
+    <script src="auth.js"></script>
+    <script>
+        if (!requirePageAccess('index.html')) {
+            document.write('');
+        }
+    </script>
+
+    <!-- Top Header -->
+    <header class="sticky top-0 z-40 border-b border-slate-200/80 bg-white/90 backdrop-blur">
+      <div class="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
+        <div class="flex items-center gap-3">
+          <div class="grid h-11 w-11 place-items-center rounded-2xl bg-brand-500 text-white shadow-soft">
+            <i data-lucide="printer" class="h-5 w-5"></i>
+          </div>
+          <div>
+            <p class="text-xs font-medium uppercase tracking-[0.18em] text-slate-500">Hệ Thống</p>
+            <h1 class="text-lg font-semibold sm:text-xl">In Nhãn</h1>
+          </div>
+        </div>
+
+        <div class="hidden flex-1 items-center justify-center px-6 md:flex">
+          <div class="group flex w-full max-w-md items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-sm transition focus-within:border-brand-500 focus-within:ring-4 focus-within:ring-brand-100">
+            <i data-lucide="search" class="h-4 w-4 text-slate-400 group-focus-within:text-brand-500"></i>
+            <input
+              type="text"
+              placeholder="Tìm kiếm..."
+              class="w-full bg-transparent text-sm outline-none placeholder:text-slate-400"
+            />
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2 sm:gap-3">
+          <button onclick="goToManagementPage()" class="rounded-xl border border-slate-200 bg-white p-2.5 text-slate-500 transition hover:border-brand-500/40 hover:text-brand-500" title="Trở về quản lý">
+            <i data-lucide="arrow-left" class="h-5 w-5"></i>
+          </button>
+          <button class="rounded-xl border border-slate-200 bg-white p-2.5 text-slate-500 transition hover:border-brand-500/40 hover:text-brand-500">
+            <i data-lucide="bell" class="h-5 w-5"></i>
+          </button>
+          <div class="h-10 w-10 rounded-2xl bg-gradient-to-br from-brand-500 to-orange-400 shadow-soft"></div>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="mx-auto grid w-full max-w-7xl grid-cols-1 gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[260px_minmax(0,1fr)] lg:px-8">
+      <!-- Left Nav -->
+      <nav class="rounded-3xl border border-slate-200 bg-white p-4 shadow-soft lg:sticky lg:top-24 lg:h-fit">
+        <p class="mb-4 px-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Điều Hướng</p>
+        <ul class="space-y-1.5">
+          <li>
+            <a href="quan-ly.html" class="flex items-center justify-between rounded-2xl px-3 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900">
+              <span class="flex items-center gap-2.5">
+                <i data-lucide="home" class="h-4 w-4"></i>
+                Trang Chủ
+              </span>
+            </a>
+          </li>
+          <li>
+            <a href="index.html" class="flex items-center justify-between rounded-2xl bg-brand-50 px-3 py-2.5 text-sm font-medium text-brand-600">
+              <span class="flex items-center gap-2.5">
+                <i data-lucide="printer" class="h-4 w-4"></i>
+                In Tem
+              </span>
+              <i data-lucide="chevron-right" class="h-4 w-4 opacity-70"></i>
+            </a>
+          </li>
+          <li>
+            <a href="TaoQR.html" class="flex items-center justify-between rounded-2xl px-3 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900">
+              <span class="flex items-center gap-2.5">
+                <i data-lucide="qr-code" class="h-4 w-4"></i>
+                Quản Lý QR
+              </span>
+            </a>
+          </li>
+          <li>
+            <a href="viewer.html" class="flex items-center justify-between rounded-2xl px-3 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900">
+              <span class="flex items-center gap-2.5">
+                <i data-lucide="eye" class="h-4 w-4"></i>
+                Viewer
+              </span>
+            </a>
+          </li>
+        </ul>
+
+        <div class="mt-6 rounded-2xl bg-slate-50 p-4">
+          <div class="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700">
+            <i data-lucide="help-circle" class="h-4 w-4 text-brand-500"></i>
+            Hỗ Trợ
+          </div>
+          <p class="text-sm leading-relaxed text-slate-500">Liên hệ: 0949 002 700</p>
+          <button onclick="logoutUser()" class="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-brand-600 hover:text-brand-700">
+            Đăng Xuất
+            <i data-lucide="log-out" class="h-4 w-4"></i>
+          </button>
+        </div>
+      </nav>
+
+      <!-- Center Section -->
+      <section class="rounded-3xl border border-slate-200 bg-white p-5 shadow-soft sm:p-6">
+        <header class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-5 mb-6">
+          <div>
+            <h2 class="text-xl font-semibold sm:text-2xl">Hệ Thống In Nhãn</h2>
+            <p class="mt-1 text-sm text-slate-500">Nhập thông tin sản phẩm để in nhãn</p>
+          </div>
+        </header>
+
+        <!-- Tabs -->
+        <div class="flex gap-2 mb-6 border-b border-slate-200">
+          <button onclick="switchTab(0)" id="tab0" class="px-4 py-3 font-semibold text-brand-600 border-b-2 border-brand-600">
+            <i class="fas fa-info-circle mr-2"></i>Nhập Thông Tin
+          </button>
+          <button onclick="switchTab(1)" id="tab1" class="px-4 py-3 font-semibold text-slate-600 border-b-2 border-transparent hover:text-slate-900">
+            <i class="fas fa-chart-bar mr-2"></i>Báo Cáo
+          </button>
+        </div>
+
+        <!-- Tab 1: Form Nhập Thông Tin -->
+        <div id="content0" class="grid grid-cols-1 lg:grid-cols-7 gap-6">
+          <!-- Form -->
+          <div class="lg:col-span-4 space-y-6">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-1">Mã BTP (Lot)</label>
+                <div class="flex gap-2">
+                  <input id="maBTP" type="text" placeholder="D009MT15066-02-0K" class="flex-1 px-4 py-2 border border-slate-200 rounded-xl focus:outline-none focus:border-brand-500" oninput="updatePreview()">
+                  <button onclick="openLotModal()" class="px-4 bg-brand-500 hover:bg-brand-600 text-white rounded-xl font-medium text-sm">
+                    <i class="fas fa-history"></i>
+                  </button>
+                </div>
+              </div>
+              
+              <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-1">Quy Cách</label>
+                <input id="quyCach" type="text" value="20kg" class="w-full px-4 py-2 border border-slate-200 rounded-xl focus:outline-none focus:border-brand-500" oninput="updatePreview()">
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-1">SKU</label>
+                <input id="sku" type="text" placeholder="TP101020203.01.001" class="w-full px-4 py-2 border border-slate-200 rounded-xl focus:outline-none focus:border-brand-500" oninput="updatePreview()">
+              </div>
+
+              <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-1">Vùng Nguyên Liệu</label>
+                <select id="vungNguyenLieu" class="w-full px-4 py-2 border border-slate-200 rounded-xl focus:outline-none focus:border-brand-500" onchange="updatePreview()">
+                  <option value="MT">MT - Miền Tây</option>
+                  <option value="BP">BP - Bình Phước</option>
+                  <option value="DN">DN - Đồng Nai</option>
+                  <option value="DL">DL - Dak Lak</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-sm font-semibold text-slate-700 mb-1">Tên Thành Phẩm</label>
+              <input id="tenTP" type="text" placeholder="TP CẤP ĐÔNG SẦU RIÊNG..." class="w-full px-4 py-2 border border-slate-200 rounded-xl focus:outline-none focus:border-brand-500" oninput="updatePreview()">
+            </div>
+
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">STT Đầu</label>
+                <input id="sttDau" type="number" value="1" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm" oninput="updateSttCuoi()">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Số Lượng</label>
+                <input id="soLuongTem" type="number" value="1" min="1" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm font-semibold" oninput="updateSttCuoi()">
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">STT Cuối</label>
+                <input id="sttCuoi" type="number" value="1" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50" readonly>
+              </div>
+              <div>
+                <label class="block text-xs font-semibold text-slate-700 mb-1">Ngày SX</label>
+                <input id="ngaySX" type="date" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm" onchange="updatePreview()">
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <button onclick="printLabels(false)" class="flex items-center justify-center gap-2 py-3 px-4 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-xl transition">
+                <i class="fas fa-print"></i> In Nhãn Mới
+              </button>
+              <button onclick="printLabels(true)" class="flex items-center justify-center gap-2 py-3 px-4 bg-orange-600 hover:bg-orange-700 text-white font-semibold rounded-xl transition">
+                <i class="fas fa-redo"></i> In Lại
+              </button>
+            </div>
+          </div>
+
+          <!-- Preview & Grid -->
+          <div class="lg:col-span-3 space-y-6">
+            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <h3 class="font-semibold text-sm mb-3">Xem Trước Nhãn (90mm × 60mm)</h3>
+              <div class="flex justify-center p-4 bg-white rounded-xl border border-slate-200">
+                <div id="previewLabel" style="width:90mm; height:60mm; font-size:10px;" class="border border-dashed"></div>
+              </div>
+            </div>
+
+            <div class="rounded-2xl border border-slate-200 bg-white p-4">
+              <div class="flex items-center justify-between mb-3">
+                <h3 class="font-semibold text-sm">Danh Sách SP</h3>
+                <label class="cursor-pointer text-brand-600 hover:text-brand-700">
+                  <i class="fas fa-upload mr-1"></i><span class="text-xs">Import</span>
+                  <input type="file" id="excelFile" accept=".xlsx,.xls" class="hidden" onchange="importExcel(this)">
+                </label>
+              </div>
+              <input id="searchInput" type="text" placeholder="Tìm kiếm..." class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm mb-3" onkeyup="filterGrid()">
+              <div class="max-h-64 overflow-auto text-xs">
+                <table id="dataGrid" class="w-full">
+                  <thead class="bg-slate-50 sticky top-0">
+                    <tr class="border-b">
+                      <th class="px-2 py-1 text-left">STT</th>
+                      <th class="px-2 py-1 text-left">Mã SP</th>
+                      <th class="px-2 py-1 text-left">Tên TP</th>
+                    </tr>
+                  </thead>
+                  <tbody id="gridBody"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tab 2: Báo Cáo -->
+        <div id="content1" class="hidden">
+          <div class="grid grid-cols-2 gap-4 mb-6">
+            <div class="rounded-2xl border border-slate-200 bg-gradient-to-br from-emerald-50 to-emerald-100 p-6">
+              <div class="text-sm text-slate-600 mb-1">Tổng Tem Đạt</div>
+              <div id="totalTem" class="text-5xl font-bold text-emerald-600">0</div>
+            </div>
+            <div class="rounded-2xl border border-slate-200 bg-gradient-to-br from-red-50 to-red-100 p-6">
+              <div class="text-sm text-slate-600 mb-1">Tem Hồng</div>
+              <div id="temHong" class="text-5xl font-bold text-red-600">0</div>
+            </div>
+          </div>
+
+          <div class="rounded-2xl border border-slate-200 bg-white p-6">
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="font-semibold">Lịch Sử In Nhãn</h3>
+              <div class="flex gap-2">
+                <button onclick="toggleSelectAll()" class="px-3 py-2 bg-slate-200 hover:bg-slate-300 rounded-lg text-sm font-medium">
+                  <i class="fas fa-check-square mr-1"></i>Chọn Tất Cả
+                </button>
+                <button onclick="exportReportExcel()" class="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium">
+                  <i class="fas fa-file-excel mr-1"></i>Export Excel
+                </button>
+              </div>
+            </div>
+            <div class="max-h-96 overflow-auto">
+              <table id="historyTable" class="w-full text-sm"></table>
+            </div>
+          </div>
+        </div>
+
+        <div id="print-area" style="display:none;"></div>
+      </section>
+    </main>
+
+    <!-- Modal Lịch Sử Lot -->
+    <div id="lotModal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
+      <div class="bg-white rounded-2xl max-w-2xl w-full mx-4 max-h-96 overflow-hidden flex flex-col">
+        <div class="p-6 border-b flex justify-between items-center">
+          <h3 class="font-semibold">Chọn Mã BTP từ Lịch Sử</h3>
+          <button onclick="closeLotModal()" class="text-2xl cursor-pointer hover:text-red-600">&times;</button>
+        </div>
+        <div class="p-4 space-y-3 flex-1 overflow-auto">
+          <div class="flex gap-2">
+            <input id="searchLot" type="text" placeholder="Tìm theo mã lot..." class="flex-1 px-3 py-2 border border-slate-200 rounded-lg text-sm" onkeyup="filterLotList()">
+            <input id="searchDate" type="date" class="px-3 py-2 border border-slate-200 rounded-lg text-sm" onchange="filterLotList()">
+          </div>
+          <div id="lotList" class="space-y-2 text-sm"></div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      lucide.createIcons();
+
+      // Toàn bộ script từ file gốc
+      let historyRef = null, historyLots = [];
+      let gridDataGlobal = [];
+      let allHistory = [];
+
+      function switchTab(index) {
+        document.getElementById('content0').classList.toggle('hidden', index !== 0);
+        document.getElementById('content1').classList.toggle('hidden', index !== 1);
+        document.getElementById('tab0').classList.toggle('text-brand-600', index === 0);
+        document.getElementById('tab0').classList.toggle('border-b-2', index === 0);
+        document.getElementById('tab0').classList.toggle('border-brand-600', index === 0);
+        document.getElementById('tab0').classList.toggle('text-slate-600', index !== 0);
+        document.getElementById('tab0').classList.toggle('border-transparent', index !== 0);
+        document.getElementById('tab1').classList.toggle('text-brand-600', index === 1);
+        document.getElementById('tab1').classList.toggle('border-b-2', index === 1);
+        document.getElementById('tab1').classList.toggle('border-brand-600', index === 1);
+        document.getElementById('tab1').classList.toggle('text-slate-600', index !== 1);
+        document.getElementById('tab1').classList.toggle('border-transparent', index !== 1);
+      }
+
+      function updatePreview() {
+        const preview = document.getElementById('previewLabel');
+        const maBTP = document.getElementById('maBTP').value;
+        const tenTP = document.getElementById('tenTP').value;
+        const quyCach = document.getElementById('quyCach').value;
+        const vung = document.getElementById('vungNguyenLieu').value;
+        const sku = document.getElementById('sku').value;
+        const ngaySX = document.getElementById('ngaySX').value;
+        
+        preview.innerHTML = `
+          <div style="padding: 4mm; display: flex; flex-direction: column; justify-content: space-between; height: 100%; font-family: Arial, sans-serif;">
+            <div style="border-bottom: 1px solid #ccc; padding-bottom: 2mm;">
+              <div style="font-size: 8px; font-weight: bold;">${maBTP}</div>
+              <div style="font-size: 7px;">${tenTP}</div>
+              <div style="font-size: 7px;">${quyCach} - ${vung}</div>
+            </div>
+            <div style="font-size: 7px;">
+              <div>SKU: ${sku}</div>
+              <div>Ngày SX: ${ngaySX}</div>
+            </div>
+          </div>
+        `;
+      }
+
+      function updateSttCuoi() {
+        const sttDau = parseInt(document.getElementById('sttDau').value) || 1;
+        const soLuong = parseInt(document.getElementById('soLuongTem').value) || 1;
+        document.getElementById('sttCuoi').value = sttDau + soLuong - 1;
+      }
+
+      function printLabels(isReprint) {
+        const printArea = document.getElementById('print-area');
+        const maBTP = document.getElementById('maBTP').value;
+        const tenTP = document.getElementById('tenTP').value;
+        const quyCach = document.getElementById('quyCach').value;
+        const vung = document.getElementById('vungNguyenLieu').value;
+        const sku = document.getElementById('sku').value;
+        const sttDau = parseInt(document.getElementById('sttDau').value) || 1;
+        const soLuong = parseInt(document.getElementById('soLuongTem').value) || 1;
+        const ngaySX = document.getElementById('ngaySX').value;
+
+        if (!maBTP) {
+          alert('Vui lòng nhập mã BTP');
+          return;
+        }
+
+        let html = '';
+        for (let i = 0; i < soLuong; i++) {
+          const stt = sttDau + i;
+          html += `
+            <div style="page-break-after: always; width: 90mm; height: 60mm; padding: 4mm; box-sizing: border-box; border: 1px solid #ccc; font-family: Arial, sans-serif; display: flex; flex-direction: column; justify-content: space-between;">
+              <div>
+                <div style="font-size: 10px; font-weight: bold;">Mã: ${maBTP}</div>
+                <div style="font-size: 9px;">${tenTP}</div>
+                <div style="font-size: 8px;">${quyCach} - ${vung}</div>
+              </div>
+              <div style="font-size: 8px;">
+                <div>SKU: ${sku}</div>
+                <div>Ngày SX: ${ngaySX}</div>
+                <div>STT: ${stt}</div>
+              </div>
+            </div>
+          `;
+        }
+
+        printArea.innerHTML = html;
+        window.print();
+        
+        // Lưu lịch sử
+        if (!isReprint) {
+          saveToHistory({
+            maBTP, tenTP, quyCach, vung, sku, sttDau, soLuong, ngaySX,
+            timestamp: new Date().toLocaleString('vi-VN')
+          });
+        }
+      }
+
+      function saveToHistory(data) {
+        allHistory.push({...data, id: Date.now()});
+        renderHistoryTable();
+      }
+
+      function renderHistoryTable() {
+        const table = document.getElementById('historyTable');
+        if (!allHistory.length) {
+          table.innerHTML = '<tr><td class="px-4 py-3 text-center">Chưa có dữ liệu</td></tr>';
+          return;
+        }
+
+        let html = '<thead class="bg-slate-50 sticky top-0"><tr class="border-b"><th class="px-4 py-2 text-left"><input type="checkbox" onchange="toggleSelectAll(this)"></th><th class="px-4 py-2 text-left">Mã BTP</th><th class="px-4 py-2 text-left">Sản Phẩm</th><th class="px-4 py-2 text-left">STT</th><th class="px-4 py-2 text-left">Ngày</th></tr></thead><tbody>';
+        
+        allHistory.forEach(item => {
+          html += `<tr class="border-b hover:bg-slate-50">
+            <td class="px-4 py-2"><input type="checkbox" class="history-checkbox"></td>
+            <td class="px-4 py-2">${item.maBTP}</td>
+            <td class="px-4 py-2 text-sm">${item.tenTP}</td>
+            <td class="px-4 py-2 text-sm">${item.sttDau} - ${item.sttDau + item.soLuong - 1}</td>
+            <td class="px-4 py-2 text-sm">${item.timestamp}</td>
+          </tr>`;
+        });
+
+        table.innerHTML = html + '</tbody>';
+      }
+
+      function toggleSelectAll(checkbox) {
+        document.querySelectorAll('.history-checkbox').forEach(el => el.checked = checkbox ? checkbox.checked : false);
+      }
+
+      function exportReportExcel() {
+        const ws = XLSX.utils.json_to_sheet(allHistory);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, 'Báo Cáo');
+        XLSX.writeFile(wb, 'bao-cao-in-nhan.xlsx');
+      }
+
+      async function openLotModal() {
+        await loadHistoryLots();
+        renderLotList();
+        document.getElementById('lotModal').classList.remove('hidden');
+      }
+
+      function closeLotModal() {
+        document.getElementById('lotModal').classList.add('hidden');
+      }
+
+      async function loadHistoryLots() {
+        try {
+          const runtimeConfig = await window.getRuntimeConfig();
+          if (!firebase.apps.find(app => app.name === 'oldApp')) {
+            firebase.initializeApp(runtimeConfig || {}, 'oldApp');
+          }
+          const ref = firebase.app('oldApp').database().ref('qrHistory');
+          const snapshot = await ref.once('value');
+          const data = snapshot.val();
+          historyLots = data ? Object.values(data) : [];
+        } catch(e) { console.error(e); }
+      }
+
+      function renderLotList() {
+        const lotList = document.getElementById('lotList');
+        if (!historyLots.length) {
+          lotList.innerHTML = '<div class="text-slate-500">Không có dữ liệu</div>';
+          return;
+        }
+
+        lotList.innerHTML = historyLots.map(lot => `
+          <button onclick="selectLot('${lot.id}')" class="w-full text-left px-3 py-2 rounded-lg hover:bg-brand-50 border border-transparent hover:border-brand-200 transition">
+            <div class="font-mono text-sm font-semibold">${lot.id}</div>
+          </button>
+        `).join('');
+      }
+
+      function selectLot(maBTP) {
+        document.getElementById('maBTP').value = maBTP;
+        updatePreview();
+        closeLotModal();
+      }
+
+      function filterLotList() {
+        const search = document.getElementById('searchLot').value.toLowerCase();
+        const date = document.getElementById('searchDate').value;
+        document.querySelectorAll('#lotList button').forEach(btn => {
+          const id = btn.querySelector('.font-mono').textContent.toLowerCase();
+          const matches = id.includes(search);
+          btn.style.display = matches ? 'block' : 'none';
+        });
+      }
+
+      function filterGrid() {
+        const search = document.getElementById('searchInput').value.toLowerCase();
+        document.querySelectorAll('#gridBody tr').forEach(row => {
+          const cells = row.textContent.toLowerCase();
+          row.style.display = cells.includes(search) ? '' : 'none';
+        });
+      }
+
+      function importExcel(input) {
+        const file = input.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const data = new Uint8Array(e.target.result);
+          const workbook = XLSX.read(data, {type: 'array'});
+          const sheet = workbook.Sheets[workbook.SheetNames[0]];
+          const jsonData = XLSX.utils.sheet_to_json(sheet);
+          gridDataGlobal = jsonData;
+          renderGrid();
+        };
+        reader.readAsArrayBuffer(file);
+      }
+
+      function renderGrid() {
+        const tbody = document.getElementById('gridBody');
+        tbody.innerHTML = gridDataGlobal.map((item, index) => `
+          <tr class="border-b hover:bg-slate-50 cursor-pointer" onclick="loadFromGrid(this, '${item['Mã SP'] || ''}', '${item['Tên TP'] || ''}')">
+            <td class="px-4 py-2 text-sm">${index + 1}</td>
+            <td class="px-4 py-2 text-sm font-mono">${item['Mã SP'] || ''}</td>
+            <td class="px-4 py-2 text-sm">${item['Tên TP'] || ''}</td>
+          </tr>
+        `).join('');
+      }
+
+      function loadFromGrid(elem, maSP, tenTP) {
+        if (maSP) {
+          document.getElementById('sku').value = maSP;
+          document.getElementById('tenTP').value = tenTP;
+          updatePreview();
+        }
+      }
+
+      function goToManagementPage() {
+        window.location.href = 'quan-ly.html';
+      }
+
+      // Initialize
+      renderHistoryTable();
+    </script>
+  </body>
+</html>

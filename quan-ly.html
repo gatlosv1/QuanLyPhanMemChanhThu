@@ -3,129 +3,288 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Quản lý</title>
-    <link rel="stylesheet" href="style.css">
+    <title>Quản lý - Quản Lý Kho</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              brand: {
+                50: "#fff7ed",
+                100: "#ffedd5",
+                500: "#f97316",
+                600: "#ea580c",
+              },
+            },
+            boxShadow: {
+              soft: "0 10px 30px rgba(2, 6, 23, 0.06)",
+            },
+          },
+        },
+      };
+    </script>
   </head>
-  <body class="page-manager">
+  <body class="min-h-screen bg-slate-50 text-slate-800">
+    <script src="firebase-config.js"></script>
     <script src="auth.js"></script>
     <script>
       if (!requirePageAccess('quan-ly.html')) {
         document.write('');
       }
     </script>
-    <header>
-      <h1>Trang quản lý</h1>
-      <p>Quản lý dữ liệu và kiểm soát hệ thống</p>
-      <button class="logout-btn" onclick="logoutUser()">Đăng xuất</button>
-    </header>
-    <div class="container">
-      <div class="card">
-        <div style="display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;">
-          <div>
-            <h2>Đăng ký tài khoản mới</h2>
-            <p style="margin:4px 0 0; color:#666;">Chỉ quản trị viên mới có thể tạo tài khoản.</p>
-          </div>
-          <button id="showRegisterBtn" class="edit" type="button">Đăng ký</button>
-        </div>
-        <p id="registerMessage" style="margin-top:12px; color:#b91c1c;"></p>
-        <form id="registerForm" style="display:none; margin-top:16px;">
-          <div style="display:grid; gap:12px; max-width:480px;">
-            <div>
-              <label for="newUsername">Tên đăng nhập</label>
-              <input id="newUsername" type="text" required style="width:100%; padding:10px; border:1px solid #ddd; border-radius:8px;">
-            </div>
-            <div>
-              <label for="newPassword">Mật khẩu</label>
-              <input id="newPassword" type="password" required style="width:100%; padding:10px; border:1px solid #ddd; border-radius:8px;">
-            </div>
-            <div>
-              <label for="newRole">Vai trò</label>
-              <select id="newRole" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:8px;">
-                <option value="viewer">viewer</option>
-                <option value="qr">qr</option>
-                <option value="admin">admin</option>
-              </select>
-            </div>
-            <div>
-              <label for="newPage">Trang được phép truy cập</label>
-              <select id="newPage" style="width:100%; padding:10px; border:1px solid #ddd; border-radius:8px;">
-                <option value="index.html">index.html</option>
-                <option value="viewer.html">viewer.html</option>
-                <option value="TaoQR.html">TaoQR.html</option>
-                <option value="quan-ly.html">quan-ly.html</option>
-              </select>
-            </div>
-            <button type="submit" class="edit" style="width:fit-content;">Tạo tài khoản</button>
-          </div>
-        </form>
-      </div>
 
-      <div class="card">
-        <h2>Danh sách mục</h2>
-        <table class="table">
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>Tên mục</th>
-              <th>Trạng thái</th>
-              <th>Hành động</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td>1</td>
-              <td>Quản lý người dùng</td>
-              <td>Hoạt động</td>
-              <td class="actions">
-                <button class="edit">Sửa</button>
-                <button class="delete">Xóa</button>
-              </td>
-            </tr>
-            <tr>
-              <td>2</td>
-              <td>Quản lý đơn hàng</td>
-              <td>Hoạt động</td>
-              <td class="actions">
-                <span style="color:#2563eb; font-weight:600;">Đã kết nối</span>
-              </td>
-            </tr>
-            <tr>
-              <td>3</td>
-              <td>Thống kê QR</td>
-              <td>Hoạt động</td>
-              <td class="actions">
-                <span style="color:#2563eb; font-weight:600;">Đã kết nối</span>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-        <div style="margin-top:16px; display:flex; gap:12px; flex-wrap:wrap;">
-          <a href="index.html" style="text-decoration:none; display:inline-block; padding:10px 14px; border-radius:8px; background:#2563eb; color:white; font-weight:600;">Đi đến trang in tem</a>
-          <a href="TaoQR.html" style="text-decoration:none; display:inline-block; padding:10px 14px; border-radius:8px; background:#0f766e; color:white; font-weight:600;">Đi đến trang quản lý QR</a>
-          <a href="viewer.html" style="text-decoration:none; display:inline-block; padding:10px 14px; border-radius:8px; background:#7c3aed; color:white; font-weight:600;">Đi đến trang viewer</a>
+    <!-- Top Header -->
+    <header class="sticky top-0 z-40 border-b border-slate-200/80 bg-white/90 backdrop-blur">
+      <div class="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
+        <div class="flex items-center gap-3">
+          <div class="grid h-11 w-11 place-items-center rounded-2xl bg-brand-500 text-white shadow-soft">
+            <i data-lucide="package" class="h-5 w-5"></i>
+          </div>
+          <div>
+            <p class="text-xs font-medium uppercase tracking-[0.18em] text-slate-500">Hệ Thống</p>
+            <h1 class="text-lg font-semibold sm:text-xl">Quản Lý Kho</h1>
+          </div>
+        </div>
+
+        <div class="hidden flex-1 items-center justify-center px-6 md:flex">
+          <div class="group flex w-full max-w-md items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2 shadow-sm transition focus-within:border-brand-500 focus-within:ring-4 focus-within:ring-brand-100">
+            <i data-lucide="search" class="h-4 w-4 text-slate-400 group-focus-within:text-brand-500"></i>
+            <input
+              type="text"
+              placeholder="Tìm kiếm..."
+              class="w-full bg-transparent text-sm outline-none placeholder:text-slate-400"
+            />
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2 sm:gap-3">
+          <button class="rounded-xl border border-slate-200 bg-white p-2.5 text-slate-500 transition hover:border-brand-500/40 hover:text-brand-500">
+            <i data-lucide="bell" class="h-5 w-5"></i>
+          </button>
+          <div class="h-10 w-10 rounded-2xl bg-gradient-to-br from-brand-500 to-orange-400 shadow-soft"></div>
         </div>
       </div>
-    </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="mx-auto grid w-full max-w-7xl grid-cols-1 gap-6 px-4 py-6 sm:px-6 lg:grid-cols-[260px_minmax(0,1fr)_280px] lg:px-8">
+      <!-- Left Nav -->
+      <nav class="rounded-3xl border border-slate-200 bg-white p-4 shadow-soft lg:sticky lg:top-24 lg:h-fit">
+        <p class="mb-4 px-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Điều Hướng</p>
+        <ul class="space-y-1.5">
+          <li>
+            <a href="quan-ly.html" class="flex items-center justify-between rounded-2xl bg-brand-50 px-3 py-2.5 text-sm font-medium text-brand-600">
+              <span class="flex items-center gap-2.5">
+                <i data-lucide="home" class="h-4 w-4"></i>
+                Trang Chủ
+              </span>
+              <i data-lucide="chevron-right" class="h-4 w-4 opacity-70"></i>
+            </a>
+          </li>
+          <li>
+            <a href="index.html" id="navIndex" class="flex items-center justify-between rounded-2xl px-3 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900">
+              <span class="flex items-center gap-2.5">
+                <i data-lucide="printer" class="h-4 w-4"></i>
+                In Tem
+              </span>
+              <i data-lucide="chevron-right" class="h-4 w-4 opacity-70"></i>
+            </a>
+          </li>
+          <li>
+            <a href="TaoQR.html" id="navQr" class="flex items-center justify-between rounded-2xl px-3 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900">
+              <span class="flex items-center gap-2.5">
+                <i data-lucide="qr-code" class="h-4 w-4"></i>
+                Quản Lý QR
+              </span>
+              <i data-lucide="chevron-right" class="h-4 w-4 opacity-70"></i>
+            </a>
+          </li>
+          <li>
+            <a href="viewer.html" id="navViewer" class="flex items-center justify-between rounded-2xl px-3 py-2.5 text-sm font-medium text-slate-600 transition hover:bg-slate-100 hover:text-slate-900">
+              <span class="flex items-center gap-2.5">
+                <i data-lucide="eye" class="h-4 w-4"></i>
+                Viewer
+              </span>
+              <i data-lucide="chevron-right" class="h-4 w-4 opacity-70"></i>
+            </a>
+          </li>
+        </ul>
+
+        <div class="mt-6 rounded-2xl bg-slate-50 p-4">
+          <div class="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-700">
+            <i data-lucide="info" class="h-4 w-4 text-brand-500"></i>
+            Ghi Chú
+          </div>
+          <p class="text-sm leading-relaxed text-slate-500">Chỉ xem các mục được cấp quyền cho tài khoản của bạn.</p>
+          <button onclick="logoutUser()" class="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-brand-600 hover:text-brand-700">
+            Đăng Xuất
+            <i data-lucide="log-out" class="h-4 w-4"></i>
+          </button>
+        </div>
+      </nav>
+
+      <!-- Center Section -->
+      <section class="rounded-3xl border border-slate-200 bg-white p-5 shadow-soft sm:p-6">
+        <header class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-5 mb-6">
+          <div>
+            <h2 class="text-xl font-semibold sm:text-2xl">Bảng Điều Khiển</h2>
+            <p class="mt-1 text-sm text-slate-500">Quản lý tài khoản và truy cập hệ thống</p>
+          </div>
+        </header>
+
+        <!-- Register Section -->
+        <div class="mb-6">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-semibold">Đăng Ký Tài Khoản Mới</h3>
+            <button id="showRegisterBtn" class="inline-flex items-center gap-2 rounded-2xl bg-brand-500 px-4 py-2.5 text-sm font-semibold text-white shadow-soft transition hover:bg-brand-600">
+              <i data-lucide="plus" class="h-4 w-4"></i>
+              <span class="hidden sm:inline">Tạo Tài Khoản</span>
+            </button>
+          </div>
+
+          <div id="registerMessage" class="mb-4 hidden rounded-2xl bg-blue-50 p-4 text-sm text-blue-700"></div>
+
+          <form id="registerForm" class="hidden grid grid-cols-1 gap-4 sm:grid-cols-2 rounded-2xl border border-slate-200 bg-slate-50 p-6 mb-4">
+            <div>
+              <label for="newUsername" class="block text-sm font-semibold text-slate-700 mb-1">Tên đăng nhập</label>
+              <input id="newUsername" type="text" required class="w-full px-4 py-2 border border-slate-200 rounded-xl focus:outline-none focus:border-brand-500">
+            </div>
+            <div>
+              <label for="newPassword" class="block text-sm font-semibold text-slate-700 mb-1">Mật khẩu</label>
+              <input id="newPassword" type="password" required class="w-full px-4 py-2 border border-slate-200 rounded-xl focus:outline-none focus:border-brand-500">
+            </div>
+            <div>
+              <label for="newRole" class="block text-sm font-semibold text-slate-700 mb-1">Vai trò</label>
+              <select id="newRole" class="w-full px-4 py-2 border border-slate-200 rounded-xl focus:outline-none focus:border-brand-500">
+                <option value="viewer">Viewer</option>
+                <option value="qr">QR Manager</option>
+                <option value="admin">Admin</option>
+              </select>
+            </div>
+            <div>
+              <label for="newPage" class="block text-sm font-semibold text-slate-700 mb-1">Trang được phép</label>
+              <select id="newPage" class="w-full px-4 py-2 border border-slate-200 rounded-xl focus:outline-none focus:border-brand-500">
+                <option value="index.html">In Tem</option>
+                <option value="viewer.html">Viewer</option>
+                <option value="TaoQR.html">Quản Lý QR</option>
+                <option value="quan-ly.html">Quản Lý</option>
+              </select>
+            </div>
+            <div class="sm:col-span-2 flex gap-2">
+              <button type="submit" class="flex-1 py-2 px-4 bg-brand-500 hover:bg-brand-600 text-white font-semibold rounded-xl transition">
+                <i data-lucide="save" class="h-4 w-4 inline mr-2"></i>Tạo Tài Khoản
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <div class="border-t border-slate-200 pt-6">
+          <p class="text-sm text-slate-600">Chỉ quản trị viên mới có thể tạo tài khoản mới và gán quyền truy cập.</p>
+        </div>
+      </section>
+
+      <!-- Right Aside -->
+      <aside class="rounded-3xl border border-slate-200 bg-white p-5 shadow-soft lg:sticky lg:top-24 lg:h-fit">
+        <h3 class="text-base font-semibold mb-4">Thông Tin Tài Khoản</h3>
+        
+        <div class="space-y-4">
+          <div class="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+            <p class="text-xs font-semibold text-slate-600 uppercase">Tên Đăng Nhập</p>
+            <p class="mt-2 text-base font-semibold text-slate-900" id="currentUserName">Đang tải...</p>
+          </div>
+
+          <div class="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+            <p class="text-xs font-semibold text-slate-600 uppercase">Vai Trò</p>
+            <p class="mt-2 text-base font-semibold text-slate-900" id="currentUserRole">-</p>
+          </div>
+
+          <div class="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+            <p class="text-xs font-semibold text-slate-600 uppercase">Trang Mặc Định</p>
+            <p class="mt-2 text-base font-semibold text-slate-900" id="currentUserPage">-</p>
+          </div>
+
+          <div class="rounded-2xl border border-slate-100 bg-brand-50 p-4">
+            <div class="text-sm font-semibold text-brand-700 mb-2">Trạng Thái Hệ Thống</div>
+            <div class="inline-flex items-center gap-1.5 rounded-xl bg-white px-3 py-1 text-xs font-semibold text-emerald-600">
+              <i data-lucide="check-circle" class="h-3.5 w-3.5"></i>
+              Hoạt Động
+            </div>
+          </div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- Bottom Footer -->
+    <footer class="border-t border-slate-200 bg-white mt-6">
+      <div class="mx-auto flex w-full max-w-7xl flex-col items-start justify-between gap-2 px-4 py-4 text-sm text-slate-500 sm:flex-row sm:items-center sm:px-6 lg:px-8">
+        <p>© 2026 Quản Lý Kho. All rights reserved.</p>
+        <p id="navigationHint" class="text-xs"></p>
+      </div>
+    </footer>
 
     <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
     <script>
+      lucide.createIcons();
+
       (async function () {
         const currentUser = window.getCurrentUser ? window.getCurrentUser() : null;
         const showRegisterBtn = document.getElementById('showRegisterBtn');
         const registerForm = document.getElementById('registerForm');
         const registerMessage = document.getElementById('registerMessage');
+        const navigationHint = document.getElementById('navigationHint');
+        const currentUserName = document.getElementById('currentUserName');
+        const currentUserRole = document.getElementById('currentUserRole');
+        const currentUserPage = document.getElementById('currentUserPage');
+        const navigationLinks = [
+          { element: document.getElementById('navIndex'), page: 'index.html' },
+          { element: document.getElementById('navQr'), page: 'TaoQR.html' },
+          { element: document.getElementById('navViewer'), page: 'viewer.html' }
+        ];
+
+        function updateNavigationForUser(user) {
+          const isAdmin = user && user.role === 'admin';
+          const allowedPage = user && user.page ? user.page : '';
+
+          navigationLinks.forEach(link => {
+            if (!link.element) return;
+            const canAccess = isAdmin || link.page === allowedPage;
+            link.element.style.display = canAccess ? 'block' : 'none';
+          });
+
+          if (!navigationHint) return;
+          if (isAdmin) {
+            navigationHint.textContent = 'Bạn có quyền truy cập tất cả trang hệ thống.';
+            return;
+          }
+
+          if (allowedPage) {
+            navigationHint.textContent = `Tài khoản này chỉ được phép vào ${allowedPage}.`;
+            return;
+          }
+
+          navigationHint.textContent = 'Không xác định được trang được cấp quyền cho tài khoản hiện tại.';
+        }
+
+        if (currentUserName) currentUserName.textContent = currentUser?.username || 'Không xác định';
+        if (currentUserRole) currentUserRole.textContent = currentUser?.role ? (currentUser.role === 'admin' ? 'Quản Trị Viên' : currentUser.role === 'qr' ? 'Quản Lý QR' : 'Người Xem') : '-';
+        if (currentUserPage) currentUserPage.textContent = currentUser?.page ? (currentUser.page === 'index.html' ? 'In Tem' : currentUser.page === 'viewer.html' ? 'Viewer' : 'Quản Lý QR') : '-';
+
+        updateNavigationForUser(currentUser);
 
         if (!currentUser || currentUser.role !== 'admin') {
           if (showRegisterBtn) showRegisterBtn.style.display = 'none';
-          if (registerForm) registerForm.style.display = 'none';
-          if (registerMessage) registerMessage.textContent = 'Chỉ admin mới có thể tạo tài khoản.';
+          if (registerForm) registerForm.classList.add('hidden');
+          registerMessage.classList.remove('hidden');
+          registerMessage.textContent = '🔒 Chỉ quản trị viên mới có thể tạo tài khoản.';
           return;
         }
 
         if (showRegisterBtn) {
           showRegisterBtn.addEventListener('click', () => {
-            registerForm.style.display = registerForm.style.display === 'none' ? 'block' : 'none';
+            registerForm.classList.toggle('hidden');
           });
         }
 
@@ -138,8 +297,9 @@
             const page = document.getElementById('newPage').value;
 
             if (!username || !password) {
-              registerMessage.textContent = 'Vui lòng nhập đủ tên đăng nhập và mật khẩu.';
-              registerMessage.style.color = '#b91c1c';
+              registerMessage.classList.remove('hidden');
+              registerMessage.className = 'mb-4 rounded-2xl bg-red-50 p-4 text-sm text-red-700';
+              registerMessage.textContent = '❌ Vui lòng nhập đủ tên đăng nhập và mật khẩu.';
               return;
             }
 
@@ -153,8 +313,9 @@
               const db = firebase.app(appName).firestore();
               const existingSnap = await db.collection('accounts').where('username', '==', username).get();
               if (!existingSnap.empty) {
-                registerMessage.textContent = 'Tên đăng nhập đã tồn tại.';
-                registerMessage.style.color = '#b91c1c';
+                registerMessage.classList.remove('hidden');
+                registerMessage.className = 'mb-4 rounded-2xl bg-red-50 p-4 text-sm text-red-700';
+                registerMessage.textContent = '❌ Tên đăng nhập đã tồn tại.';
                 return;
               }
 
@@ -170,12 +331,15 @@
 
               await window.refreshAuthAccounts();
               registerForm.reset();
-              registerForm.style.display = 'none';
+              registerForm.classList.add('hidden');
+              registerMessage.classList.remove('hidden');
+              registerMessage.className = 'mb-4 rounded-2xl bg-emerald-50 p-4 text-sm text-emerald-700';
               registerMessage.textContent = '✅ Tạo tài khoản thành công.';
-              registerMessage.style.color = '#166534';
+              setTimeout(() => registerMessage.classList.add('hidden'), 3000);
             } catch (error) {
+              registerMessage.classList.remove('hidden');
+              registerMessage.className = 'mb-4 rounded-2xl bg-red-50 p-4 text-sm text-red-700';
               registerMessage.textContent = '❌ Lỗi: ' + error.message;
-              registerMessage.style.color = '#b91c1c';
             }
           });
         }

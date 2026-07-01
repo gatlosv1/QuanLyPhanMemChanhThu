@@ -51,9 +51,17 @@ async function fetchJson(url, fallback = null) {
   }
 }
 
+function getPublicFirebaseConfig() {
+  const config = window.FIREBASE_CONFIG;
+  return config && typeof config === 'object' ? config : {};
+}
+
 async function getRuntimeConfig() {
   const config = await fetchJson('/api/config', {});
-  return config || {};
+  return {
+    ...getPublicFirebaseConfig(),
+    ...(config || {})
+  };
 }
 
 async function getFirebaseAccounts() {

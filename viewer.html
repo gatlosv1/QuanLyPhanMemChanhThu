@@ -1,12 +1,37 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="vi">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Xem Thông Tin Lô Hàng - Quản Lý Trái Cây</title>
-  <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QR Viewer - Quản Lý Kho</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: "#fff7ed",
+              100: "#ffedd5",
+              500: "#f97316",
+              600: "#ea580c",
+            },
+          },
+          boxShadow: {
+            soft: "0 10px 30px rgba(2, 6, 23, 0.06)",
+          },
+        },
+      },
+    };
+  </script>
 </head>
-<body class="page-viewer">
+<body class="min-h-screen bg-slate-50 text-slate-800">
+  <script src="firebase-config.js"></script>
   <script src="auth.js"></script>
   <script>
     if (!requirePageAccess('viewer.html')) {
@@ -14,277 +39,232 @@
     }
   </script>
 
-  <div class="container">
-    <header>
-      <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
-        <button type="button" onclick="goToManagementPage()" style="text-decoration:none; display:inline-block; padding:8px 12px; border-radius:8px; background:#4b5563; color:white; font-weight:600; border:none; cursor:pointer;">← Trở về quản lý</button>
-        <h1>📋 Thông Tin Lô Hàng</h1>
-      </div>
-      <div>
-        <button class="scan-btn" onclick="startScanOnViewer()">📷 Quét QR</button>
-        <button class="logout-btn" onclick="logoutUser()">Đăng xuất</button>
-      </div>
-    </header>
-
-    <div class="content">
-      <div id="loading" class="viewer-loading">Đang tải thông tin...</div>
-
-      <div id="result" class="viewer-result-hidden">
-        <div class="ma-lo" id="maLoDisplay"></div>
-        <div class="info-grid">
-          <div class="info-item"><div class="label">Ngày Nhập</div><div class="value" id="ngayDisplay"></div></div>
-          <div class="info-item"><div class="label">Biển Số Xe</div><div class="value" id="biensoDisplay"></div></div>
-          <div class="info-item"><div class="label">Kho</div><div class="value" id="khoDisplay"></div></div>
-          <div class="info-item"><div class="label">TT Xe</div><div class="value" id="ttxeDisplay"></div></div>
-          <div class="info-item"><div class="label">Tổng Khối Lượng</div><div class="value" id="tongklDisplay"></div></div>
-          <div class="info-item"><div class="label">Nhà Cung Cấp</div><div class="value" id="nccDisplay"></div></div>
-          <div class="info-item"><div class="label">Nơi Xuất Sản</div><div class="value" id="noiDisplay"></div></div>
-          <div class="info-item"><div class="label">Hàng</div><div class="value" id="hangDisplay"></div></div>
-          <div class="info-item"><div class="label">Múi</div><div class="value" id="muiDisplay"></div></div>
-          <div class="info-item"><div class="label">Vị Trí</div><div class="value" id="vitriDisplay"></div></div>
+  <!-- Header -->
+  <header class="sticky top-0 z-40 border-b border-slate-200/80 bg-white/90 backdrop-blur">
+    <div class="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
+      <div class="flex items-center gap-3">
+        <div class="grid h-11 w-11 place-items-center rounded-2xl bg-brand-500 text-white shadow-soft">
+          <i data-lucide="eye" class="h-5 w-5"></i>
         </div>
-
-        <div class="viewer-actions">
-          <button class="scan-btn" onclick="startScanOnViewer()">📷 Quét QR Mới</button>
+        <div>
+          <p class="text-xs font-medium uppercase tracking-[0.18em] text-slate-500">Hệ Thống</p>
+          <h1 class="text-lg font-semibold sm:text-xl">Xem QR</h1>
         </div>
       </div>
 
-      <div id="error" class="viewer-error-hidden">
-        Không tìm thấy thông tin cho mã QR này.
+      <div class="flex items-center gap-2 sm:gap-3">
+        <button onclick="goToManagementPage()" class="rounded-xl border border-slate-200 bg-white p-2.5 text-slate-500 transition hover:border-brand-500/40 hover:text-brand-500" title="Trở về">
+          <i data-lucide="arrow-left" class="h-5 w-5"></i>
+        </button>
+        <button class="rounded-xl border border-slate-200 bg-white p-2.5 text-slate-500 transition hover:border-brand-500/40 hover:text-brand-500">
+          <i data-lucide="bell" class="h-5 w-5"></i>
+        </button>
+        <button onclick="logoutUser()" class="rounded-xl border border-slate-200 bg-white p-2.5 text-slate-500 transition hover:border-brand-500/40 hover:text-brand-500" title="Đăng xuất">
+          <i data-lucide="log-out" class="h-5 w-5"></i>
+        </button>
+        <div class="h-10 w-10 rounded-2xl bg-gradient-to-br from-brand-500 to-orange-400 shadow-soft"></div>
       </div>
     </div>
-  </div>
-
-  <div id="scanModal" class="modal">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3>📷 Quét Mã QR Code</h3>
-        <button id="closeScanIcon" type="button" class="close-btn" aria-label="Đóng modal">&times;</button>
-      </div>
-      <div id="reader"></div>
-      <div style="text-align:center; padding:12px 15px; color:#666; font-size:14px;">
-        Nếu camera không mở được, bạn có thể chọn ảnh QR từ máy.
-      </div>
-      <div style="display:flex; justify-content:center; gap:10px; padding:0 15px 15px;">
-        <label style="display:inline-flex; align-items:center; justify-content:center; padding:10px 14px; border-radius:8px; background:#0d6efd; color:white; cursor:pointer; font-weight:600;">
-          📁 Chọn ảnh QR
-          <input id="qrImageInput" type="file" accept="image/*" style="display:none;">
-        </label>
-        <button id="closeScanButton" type="button" style="padding:10px 14px; border:none; border-radius:8px; background:#6c757d; color:white; cursor:pointer; font-weight:600;">Đóng</button>
-      </div>
-      <div id="scanResult" style="text-align:center; padding:15px; min-height:50px;"></div>
-    </div>
-  </div>
-
-  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+  </header>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
 
+  <main class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+    <!-- QR Scanner -->
+    <div class="rounded-3xl border border-slate-200 bg-white p-5 shadow-soft sm:p-6 mb-6">
+      <h2 class="text-xl font-semibold mb-4">Quét Mã QR</h2>
+      <div id="reader" class="mx-auto w-full sm:w-96 bg-slate-100 rounded-2xl overflow-hidden"></div>
+    </div>
+
+    <!-- Thông Tin Lô -->
+    <div id="infoBox" class="hidden">
+      <div class="rounded-3xl border border-slate-200 bg-white p-5 shadow-soft sm:p-6">
+        <header class="border-b border-slate-100 pb-4 mb-6">
+          <h3 class="text-xl font-semibold flex items-center gap-2">
+            <i data-lucide="check-circle" class="h-6 w-6 text-emerald-500"></i>
+            Thông Tin Lô Hàng
+          </h3>
+        </header>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div class="rounded-2xl border border-slate-200 p-4 bg-slate-50">
+            <p class="text-xs font-medium uppercase text-slate-500 mb-1">TTxe</p>
+            <p id="ttxeDisplay" class="text-lg font-semibold">--</p>
+          </div>
+          <div class="rounded-2xl border border-slate-200 p-4 bg-slate-50">
+            <p class="text-xs font-medium uppercase text-slate-500 mb-1">Biển Số</p>
+            <p id="biensoDisplay" class="text-lg font-semibold text-brand-600">--</p>
+          </div>
+          <div class="rounded-2xl border border-slate-200 p-4 bg-slate-50">
+            <p class="text-xs font-medium uppercase text-slate-500 mb-1">Nơi XS</p>
+            <p id="noiDisplay" class="text-lg font-semibold">--</p>
+          </div>
+          <div class="rounded-2xl border border-slate-200 p-4 bg-slate-50">
+            <p class="text-xs font-medium uppercase text-slate-500 mb-1">NCC</p>
+            <p id="nccDisplay" class="text-lg font-semibold">--</p>
+          </div>
+          <div class="rounded-2xl border border-slate-200 p-4 bg-slate-50">
+            <p class="text-xs font-medium uppercase text-slate-500 mb-1">Kho 1</p>
+            <p id="kho1Display" class="text-lg font-semibold">--</p>
+          </div>
+          <div class="rounded-2xl border border-slate-200 p-4 bg-slate-50">
+            <p class="text-xs font-medium uppercase text-slate-500 mb-1">Kho 2</p>
+            <p id="kho2Display" class="text-lg font-semibold">--</p>
+          </div>
+          <div class="rounded-2xl border border-slate-200 p-4 bg-slate-50">
+            <p class="text-xs font-medium uppercase text-slate-500 mb-1">Kho 3</p>
+            <p id="kho3Display" class="text-lg font-semibold">--</p>
+          </div>
+          <div class="rounded-2xl border border-slate-200 p-4 bg-slate-50">
+            <p class="text-xs font-medium uppercase text-slate-500 mb-1">Kho 4</p>
+            <p id="kho4Display" class="text-lg font-semibold">--</p>
+          </div>
+        </div>
+
+        <div class="mt-6 flex gap-3 flex-wrap">
+          <button onclick="resetScanner()" class="flex-1 min-w-40 py-3 bg-slate-600 hover:bg-slate-700 text-white font-semibold rounded-2xl transition">
+            <i class="fas fa-redo mr-2"></i>Quét Tiếp
+          </button>
+          <button onclick="printQRInfo()" class="flex-1 min-w-40 py-3 bg-brand-500 hover:bg-brand-600 text-white font-semibold rounded-2xl transition">
+            <i class="fas fa-print mr-2"></i>In Thông Tin
+          </button>
+        </div>
+      </div>
+    </div>
+  </main>
+
   <script>
-    function hasRequiredFirebaseConfig(config) {
-      return Boolean(
-        config &&
-        config.apiKey &&
-        config.authDomain &&
-        config.databaseURL &&
-        config.projectId
-      );
+    lucide.createIcons();
+
+    let scanner = null;
+    let lastScannedData = null;
+
+    function initScanner() {
+      if (scanner) return;
+      
+      try {
+        scanner = new Html5QrcodeScanner('reader', {
+          fps: 10,
+          qrbox: { width: 250, height: 250 },
+          rememberLastUsedCamera: true,
+          supportedFormats: ['QR_CODE', 'CODE_128']
+        });
+
+        scanner.render(onScanSuccess, onScanError);
+      } catch (err) {
+        console.error('Scanner init error:', err);
+        document.getElementById('reader').innerHTML = '<div class="p-8 text-center text-red-600"><p>Lỗi: Không thể khởi tạo QR scanner</p><p class="text-sm mt-2">' + err.message + '</p></div>';
+      }
     }
 
-    (async () => {
-      let html5QrCode = null;
-
-      window.startScanOnViewer = startScanOnViewer;
-      window.closeScanModal = closeScanModal;
-
-      const qrImageInput = document.getElementById('qrImageInput');
-      if (qrImageInput) {
-        qrImageInput.addEventListener('change', event => {
-          const file = event.target.files && event.target.files[0];
-          if (file) {
-            handleImageScan(file);
-          }
-        });
-      }
-
-      let firebaseConfig = {};
+    function onScanSuccess(decodedText, decodedResult) {
       try {
-        const runtimeConfig = await window.getRuntimeConfig?.() || {};
-        if (hasRequiredFirebaseConfig(runtimeConfig)) {
-          firebaseConfig = runtimeConfig;
-        }
-      } catch (error) {
-        console.warn('Không lấy được runtime config cho viewer.', error);
+        // Try to parse as JSON (for our generated QR codes)
+        const data = JSON.parse(decodedText);
+        lastScannedData = data;
+        
+        document.getElementById('ttxeDisplay').textContent = data.ttxe || '--';
+        document.getElementById('biensoDisplay').textContent = data.bienso || '--';
+        document.getElementById('noiDisplay').textContent = data.noi || '--';
+        document.getElementById('nccDisplay').textContent = data.ncc || '--';
+        document.getElementById('kho1Display').textContent = data.kho1 || '--';
+        document.getElementById('kho2Display').textContent = data.kho2 || '--';
+        document.getElementById('kho3Display').textContent = data.kho3 || '--';
+        document.getElementById('kho4Display').textContent = data.kho4 || '--';
+        
+        document.getElementById('infoBox').classList.remove('hidden');
+        if (scanner) scanner.pause();
+      } catch (e) {
+        // If not JSON, display raw text
+        console.warn('QR data is not JSON, displaying raw:', decodedText);
+        lastScannedData = { rawData: decodedText };
+        document.getElementById('ttxeDisplay').textContent = decodedText.substring(0, 20);
+        document.getElementById('biensoDisplay').textContent = decodedText;
+        document.getElementById('infoBox').classList.remove('hidden');
+        if (scanner) scanner.pause();
       }
+    }
 
-      if (!hasRequiredFirebaseConfig(firebaseConfig)) {
-        const loading = document.getElementById('loading');
-        const error = document.getElementById('error');
-        loading.style.display = 'none';
-        error.textContent = 'Thiếu cấu hình Firebase. Hãy chạy backend và kiểm tra biến môi trường FIREBASE_*.';
-        error.style.display = 'block';
-        return;
+    function onScanError(error) {
+      // Ignore QR code not found errors
+      if (error && error.includes && !error.includes('QR code not found')) {
+        console.warn('QR Scan error:', error);
       }
+    }
 
-      if (!firebase.apps.some(app => app.name === '[DEFAULT]')) {
-        firebase.initializeApp(firebaseConfig);
-      }
+    function resetScanner() {
+      document.getElementById('infoBox').classList.add('hidden');
+      if (scanner) scanner.resume();
+      lastScannedData = null;
+    }
 
-      const db = firebase.database();
-      const historyRef = db.ref('qrHistory');
+    function printQRInfo() {
+      if (!lastScannedData) return;
+      
+      const printWindow = window.open('', '_blank');
+      printWindow.document.write(`
+        <html>
+        <head>
+          <title>Thông Tin Lô Hàng</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 20px; line-height: 1.6; }
+            .info-box { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 8px; }
+            .info-row { display: flex; margin: 10px 0; }
+            .label { font-weight: bold; width: 150px; }
+            .value { flex: 1; }
+            h2 { color: #333; border-bottom: 2px solid #f97316; padding-bottom: 10px; }
+          </style>
+        </head>
+        <body>
+          <h2>Thông Tin Lô Hàng</h2>
+          <div class="info-box">
+            <div class="info-row">
+              <span class="label">TTxe:</span>
+              <span class="value">${lastScannedData.ttxe || lastScannedData.rawData || '--'}</span>
+            </div>
+            <div class="info-row">
+              <span class="label">Biển Số Xe:</span>
+              <span class="value">${lastScannedData.bienso || '--'}</span>
+            </div>
+            <div class="info-row">
+              <span class="label">Nơi Xuất Phát:</span>
+              <span class="value">${lastScannedData.noi || '--'}</span>
+            </div>
+            <div class="info-row">
+              <span class="label">NCC:</span>
+              <span class="value">${lastScannedData.ncc || '--'}</span>
+            </div>
+            <div class="info-row">
+              <span class="label">Kho 1:</span>
+              <span class="value">${lastScannedData.kho1 || '--'}</span>
+            </div>
+            <div class="info-row">
+              <span class="label">Kho 2:</span>
+              <span class="value">${lastScannedData.kho2 || '--'}</span>
+            </div>
+            <div class="info-row">
+              <span class="label">Kho 3:</span>
+              <span class="value">${lastScannedData.kho3 || '--'}</span>
+            </div>
+            <div class="info-row">
+              <span class="label">Kho 4:</span>
+              <span class="value">${lastScannedData.kho4 || '--'}</span>
+            </div>
+          </div>
+          <script>window.print();</script>
+        </body>
+        </html>
+      `);
+      printWindow.document.close();
+    }
 
-      async function loadQRInfo(maLo) {
-        const loading = document.getElementById('loading');
-        const result = document.getElementById('result');
-        const error = document.getElementById('error');
+    function goToManagementPage() {
+      window.location.href = 'quan-ly.html';
+    }
 
-        loading.style.display = 'block';
-        result.style.display = 'none';
-        error.style.display = 'none';
-
-        try {
-          const snapshot = await historyRef.once('value');
-          const data = snapshot.val();
-          const item = data ? Object.values(data).find(h => h.ma_lo === maLo) : null;
-
-          if (item) {
-            document.getElementById('maLoDisplay').textContent = item.ma_lo || maLo;
-            document.getElementById('ngayDisplay').textContent = item.ngay_display || 'Không có';
-            document.getElementById('biensoDisplay').textContent = item.bienso && item.bienso.trim() !== '' ? item.bienso : 'Không có';
-
-            const khoList = [];
-            if (item.kho1 && item.kho1.trim() !== '') khoList.push(item.kho1);
-            if (item.kho2 && item.kho2.trim() !== '') khoList.push(item.kho2);
-            if (item.kho3 && item.kho3.trim() !== '') khoList.push(item.kho3);
-            if (item.kho4 && item.kho4.trim() !== '') khoList.push(item.kho4);
-
-            document.getElementById('khoDisplay').textContent = khoList.length ? khoList.join(' - ') : 'Không có';
-            document.getElementById('tongklDisplay').textContent = item.tongkl ? `${item.tongkl} kg` : 'Không có';
-            document.getElementById('ttxeDisplay').textContent = item.ttxe || '—';
-            document.getElementById('nccDisplay').textContent = item.ncc || '—';
-            document.getElementById('noiDisplay').textContent = item.noi || '—';
-            document.getElementById('hangDisplay').textContent = item.hang || '—';
-            document.getElementById('muiDisplay').textContent = item.mui || '—';
-            document.getElementById('vitriDisplay').textContent = (item.vitri1 && item.vitri2) ? `${item.vitri1}/${item.vitri2}` : (item.vitri1 || '—');
-            result.style.display = 'block';
-          } else {
-            document.getElementById('maLoDisplay').textContent = maLo;
-            document.getElementById('ngayDisplay').textContent = 'Không tìm thấy chi tiết';
-            document.getElementById('biensoDisplay').textContent = '—';
-            document.getElementById('khoDisplay').textContent = '—';
-            result.style.display = 'block';
-          }
-        } catch (error) {
-          console.error(error);
-          error.style.display = 'block';
-        } finally {
-          loading.style.display = 'none';
-        }
-      }
-
-      function startScanOnViewer() {
-        const modal = document.getElementById('scanModal');
-        const resultEl = document.getElementById('scanResult');
-        modal.style.display = 'flex';
-        resultEl.innerHTML = '';
-        document.getElementById('qrImageInput').value = '';
-        startScanner();
-      }
-
-      function closeScanModal() {
-        const modal = document.getElementById('scanModal');
-        modal.style.display = 'none';
-        stopScanner();
-      }
-
-      function handleScanResult(decodedText) {
-        stopScanner();
-        closeScanModal();
-        if (decodedText.includes('viewer.html')) {
-          window.location.href = decodedText;
-        } else {
-          window.location.href = `viewer.html?q=${encodeURIComponent(decodedText)}`;
-        }
-      }
-
-      async function startScanner() {
-        const resultEl = document.getElementById('scanResult');
-        if (html5QrCode) {
-          stopScanner();
-        }
-        if (!window.Html5Qrcode) {
-          resultEl.innerHTML = '<div style="color:#d9534f;">Thư viện quét QR chưa sẵn sàng. Vui lòng tải lại trang.</div>';
-          return;
-        }
-
-        html5QrCode = new Html5Qrcode('reader');
-        resultEl.innerHTML = '<div style="color:#0d6efd;">Đang mở camera...</div>';
-
-        try {
-          const cameras = await Html5Qrcode.getCameras();
-          if (!cameras || cameras.length === 0) {
-            resultEl.innerHTML = '<div style="color:#d9534f;">Không tìm thấy camera nào trên thiết bị này.</div>';
-            return;
-          }
-
-          const preferredCamera = cameras.find(camera => /back|rear|environment/i.test(camera.label)) || cameras[0];
-          await html5QrCode.start(
-            { deviceId: { exact: preferredCamera.id } },
-            { fps: 10, qrbox: { width: 280, height: 280 } },
-            (decodedText) => handleScanResult(decodedText),
-            () => {}
-          );
-        } catch (err) {
-          console.error('Lỗi mở camera QR:', err);
-          resultEl.innerHTML = '<div style="color:#d9534f;">Không thể mở camera. Bạn có thể chọn ảnh QR từ máy.</div>';
-        }
-      }
-
-      function handleImageScan(file) {
-        if (!file) return;
-        if (!window.Html5Qrcode) {
-          document.getElementById('scanResult').innerHTML = '<div style="color:#d9534f;">Thư viện quét QR chưa sẵn sàng.</div>';
-          return;
-        }
-
-        const resultEl = document.getElementById('scanResult');
-        resultEl.innerHTML = '<div style="color:#0d6efd;">Đang đọc mã QR từ ảnh...</div>';
-        if (html5QrCode) {
-          stopScanner();
-        }
-        html5QrCode = new Html5Qrcode('reader');
-        html5QrCode.scanFile(file, true)
-          .then(decodedText => handleScanResult(decodedText))
-          .catch(() => {
-            resultEl.innerHTML = '<div style="color:#d9534f;">Không đọc được mã QR từ ảnh. Vui lòng thử ảnh khác.</div>';
-          });
-      }
-
-      function stopScanner() {
-        if (html5QrCode) {
-          html5QrCode.stop().catch(() => {});
-          html5QrCode = null;
-        }
-      }
-
-      document.getElementById('closeScanIcon').addEventListener('click', closeScanModal);
-      document.getElementById('closeScanButton').addEventListener('click', closeScanModal);
-
-      document.getElementById('scanModal').addEventListener('click', (event) => {
-        if (event.target === document.getElementById('scanModal')) {
-          closeScanModal();
-        }
-      });
-
-      const urlParams = new URLSearchParams(window.location.search);
-      const maLo = urlParams.get('q');
-
-      if (maLo) {
-        loadQRInfo(maLo);
-      } else {
-        document.getElementById('loading').innerHTML = '<p style="color:red;">Không có mã QR.<br>Vui lòng truy cập: <strong>viewer.html?q=MÃ_LÔ</strong></p>';
-      }
-    })();
+    // Khởi tạo scanner khi trang tải
+    window.addEventListener('load', () => {
+      initScanner();
+    });
   </script>
 </body>
 </html>

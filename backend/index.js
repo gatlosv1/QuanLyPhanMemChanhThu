@@ -15,23 +15,8 @@ function getEnv(name, fallback = '') {
   return process.env[name] || fallback;
 }
 
-function getFirebaseConfig() {
-  return {
-    apiKey: getEnv('FIREBASE_API_KEY'),
-    authDomain: getEnv('FIREBASE_AUTH_DOMAIN'),
-    databaseURL: getEnv('FIREBASE_DATABASE_URL'),
-    projectId: getEnv('FIREBASE_PROJECT_ID'),
-    storageBucket: getEnv('FIREBASE_STORAGE_BUCKET'),
-    messagingSenderId: getEnv('FIREBASE_MESSAGING_SENDER_ID'),
-    appId: getEnv('FIREBASE_APP_ID'),
-    measurementId: getEnv('FIREBASE_MEASUREMENT_ID')
-  };
-}
-
 function getRuntimeSettings() {
-  const firebaseConfig = getFirebaseConfig();
   return {
-    ...firebaseConfig,
     resetPassword: getEnv('RESET_PASSWORD', ''),
     historyPassword: getEnv('HISTORY_PASSWORD', ''),
     deletePassword: getEnv('DELETE_PASSWORD', '')
