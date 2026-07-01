@@ -170,6 +170,9 @@ async function refreshAuthAccounts() {
 
 async function loginUser(username, password) {
   const accounts = await getAuthAccounts(true);
+  if (!accounts.length) {
+    return { ok: false, message: 'Chưa có tài khoản đăng nhập hoặc không đọc được dữ liệu tài khoản từ Firebase.' };
+  }
   const account = accounts.find(item => item.username === username);
   if (!account) {
     return { ok: false, message: 'Tên đăng nhập hoặc mật khẩu không đúng.' };
