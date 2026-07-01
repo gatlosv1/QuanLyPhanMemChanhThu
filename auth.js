@@ -83,9 +83,9 @@ async function getAuthAccounts(forceRefresh = false) {
   const backendAccounts = await fetchJson('/api/auth/accounts', []);
   const firebaseAccounts = await getFirebaseAccounts();
   const merged = [
+    ...fallbackAuthAccounts,
     ...(Array.isArray(backendAccounts) ? backendAccounts : []),
-    ...(Array.isArray(firebaseAccounts) ? firebaseAccounts : []),
-    ...fallbackAuthAccounts
+    ...(Array.isArray(firebaseAccounts) ? firebaseAccounts : [])
   ];
   const unique = merged.filter((account, index, array) => index === array.findIndex(item => item.username === account.username));
   authAccountsCache = unique;
@@ -126,12 +126,26 @@ function requirePageAccess(currentPageName = getCurrentPageName()) {
   }
 
   const allowedPage = session.page || 'dang-nhap.html';
-  if (allowedPage !== currentPageName) {
+  const isAdmin = session.role === 'admin';
+  const isAllowedPage = currentPageName === allowedPage || currentPageName === 'dang-nhap.html' || currentPageName === 'quan-ly.html';
+  const isManagementBackLink = currentPageName === 'quan-ly.html' && ['viewer.html', 'index.html', 'TaoQR.html'].includes(allowedPage);
+
+  if (!isAdmin && !isAllowedPage && !isManagementBackLink) {
     window.location.href = allowedPage;
     return false;
   }
 
   return true;
+}
+
+function goToManagementPage() {
+  const session = getCurrentSession();
+  if (!session) {
+    window.location.href = 'dang-nhap.html?redirect=quan-ly.html';
+    return;
+  }
+
+  window.location.href = 'quan-ly.html';
 }
 
 function logoutUser() {
@@ -146,4 +160,5 @@ window.getAuthAccounts = getAuthAccounts;
 window.refreshAuthAccounts = refreshAuthAccounts;
 window.loginUser = loginUser;
 window.requirePageAccess = requirePageAccess;
+window.goToManagementPage = goToManagementPage;
 window.logoutUser = logoutUser;

@@ -15,7 +15,10 @@
     }
   </script>
   <header>
-    <strong>Nhập Tạo QRcode</strong>
+    <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+      <button type="button" onclick="goToManagementPage()" style="text-decoration:none; display:inline-block; padding:8px 12px; border-radius:8px; background:#4b5563; color:white; font-weight:600; border:none; cursor:pointer;">← Trở về quản lý</button>
+      <strong>Nhập Tạo QRcode</strong>
+    </div>
     <div id="realtimeClock" class="clock"></div>
     <button class="logout-btn" onclick="logoutUser()">Đăng xuất</button>
   </header>
@@ -143,7 +146,7 @@
     <div class="modal-content">
       <div class="modal-header">
         <h3>📷 Quét Mã QR Code</h3>
-        <span id="closeModal" class="close-btn">&times;</span>
+        <button id="closeModal" type="button" class="close-btn" aria-label="Đóng modal">&times;</button>
       </div>
       <div id="reader" style="width:100%; max-width:400px; margin:20px auto;"></div>
       <div id="scanResult" style="text-align:center; padding:15px; min-height:50px;"></div>
@@ -160,15 +163,33 @@
 
   <script>
     (async () => {
+      let history = [];
+      let html5QrCode = null;
+      let currentPermission = 0; // 0: none, 1: view only, 2: full
+
+      document.getElementById('scanBtn').addEventListener('click', () => {
+        document.getElementById('scanModal').style.display = 'flex';
+        document.getElementById('scanResult').innerHTML = '';
+        startScanner();
+      });
+
+      document.getElementById('closeModal').addEventListener('click', () => {
+        closeScanModal();
+      });
+
+      document.getElementById('scanModal').addEventListener('click', (event) => {
+        if (event.target === document.getElementById('scanModal')) {
+          closeScanModal();
+        }
+      });
+
+      window.closeScanModal = closeScanModal;
+
       window.__APP_SETTINGS = await window.getRuntimeConfig();
       const firebaseConfig = window.__APP_SETTINGS || {};
       firebase.initializeApp(firebaseConfig);
       const db = firebase.database();
     const historyRef = db.ref('qrHistory');
-
-    let history = [];
-    let html5QrCode = null;
-    let currentPermission = 0; // 0: none, 1: view only, 2: full
 
     function pad(n){ return n < 10 ? '0' + n : n; }
 
@@ -343,46 +364,53 @@
       });
     });
 
-    // Quét QR
-    document.getElementById('scanBtn').addEventListener('click', () => {
-      document.getElementById('scanModal').style.display = 'flex';
-      document.getElementById('scanResult').innerHTML = '';
-      startScanner();
-    });
-
-    document.getElementById('closeModal').addEventListener('click', () => {
-      stopScanner();
-      document.getElementById('scanModal').style.display = 'none';
-    });
-
-    function startScanner() {
+    async function startScanner() {
       if (html5QrCode) stopScanner();
+      const resultEl = document.getElementById('scanResult');
+      if (!window.Html5Qrcode) {
+        resultEl.innerHTML = '<div style="color:#d9534f;">Thư viện quét QR chưa sẵn sàng. Vui lòng tải lại trang.</div>';
+        return;
+      }
       html5QrCode = new Html5Qrcode("reader");
+      resultEl.innerHTML = '<div style="color:#0d6efd;">Đang mở camera...</div>';
 
-      html5QrCode.start(
-        { facingMode: "environment" },
-        { fps: 10, qrbox: { width: 280, height: 280 } },
-        (decodedText) => {
-          stopScanner();
-          document.getElementById('scanModal').style.display = 'none';
-          
-          // Xử lý link viewer hoặc mã lô
-          if (decodedText.includes('viewer.html?q=')) {
-            window.location.href = decodedText;
-          } else if (decodedText.includes('?q=')) {
-            window.location.href = decodedText;
-          } else {
-            // Nếu chỉ là mã lô thuần
-            window.location.href = `viewer.html?q=${encodeURIComponent(decodedText)}`;
-          }
-        },
-        (error) => {
-          // Không cần alert mỗi lần lỗi nhỏ
+      try {
+        const cameras = await Html5Qrcode.getCameras();
+        if (!cameras || cameras.length === 0) {
+          resultEl.innerHTML = '<div style="color:#d9534f;">Không tìm thấy camera nào trên thiết bị này.</div>';
+          return;
         }
-      ).catch(err => {
-        alert("Không thể mở camera.\nVui lòng cho phép quyền Camera trong trình duyệt.");
-        document.getElementById('scanModal').style.display = 'none';
-      });
+
+        const preferredCamera = cameras.find(camera => /back|rear|environment/i.test(camera.label)) || cameras[0];
+        await html5QrCode.start(
+          { deviceId: { exact: preferredCamera.id } },
+          { fps: 10, qrbox: { width: 280, height: 280 } },
+          (decodedText) => {
+            stopScanner();
+            document.getElementById('scanModal').style.display = 'none';
+            
+            // Xử lý link viewer hoặc mã lô
+            if (decodedText.includes('viewer.html?q=')) {
+              window.location.href = decodedText;
+            } else if (decodedText.includes('?q=')) {
+              window.location.href = decodedText;
+            } else {
+              // Nếu chỉ là mã lô thuần
+              window.location.href = `viewer.html?q=${encodeURIComponent(decodedText)}`;
+            }
+          },
+          () => {}
+        );
+      } catch (err) {
+        console.error('Lỗi mở camera QR:', err);
+        resultEl.innerHTML = '<div style="color:#d9534f;">Không thể mở camera. Vui lòng cho phép quyền Camera trong trình duyệt hoặc dùng ảnh QR.</div>';
+      }
+    }
+
+    function closeScanModal() {
+      const modal = document.getElementById('scanModal');
+      modal.style.display = 'none';
+      stopScanner();
     }
 
     function stopScanner() {
@@ -495,6 +523,7 @@
     document.getElementById('clearBtn').addEventListener('click', () => location.reload());
 
     loadHistoryFromFirebase();
+    })();
   </script>
 </body>
 </html>

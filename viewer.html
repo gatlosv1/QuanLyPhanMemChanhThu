@@ -16,7 +16,10 @@
 
   <div class="container">
     <header>
-      <h1>📋 Thông Tin Lô Hàng</h1>
+      <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+        <button type="button" onclick="goToManagementPage()" style="text-decoration:none; display:inline-block; padding:8px 12px; border-radius:8px; background:#4b5563; color:white; font-weight:600; border:none; cursor:pointer;">← Trở về quản lý</button>
+        <h1>📋 Thông Tin Lô Hàng</h1>
+      </div>
       <div>
         <button class="scan-btn" onclick="startScanOnViewer()">📷 Quét QR</button>
         <button class="logout-btn" onclick="logoutUser()">Đăng xuất</button>
@@ -56,7 +59,7 @@
     <div class="modal-content">
       <div class="modal-header">
         <h3>📷 Quét Mã QR Code</h3>
-        <span onclick="closeScanModal()" class="close-btn">&times;</span>
+        <button id="closeScanIcon" type="button" class="close-btn" aria-label="Đóng modal">&times;</button>
       </div>
       <div id="reader"></div>
       <div style="text-align:center; padding:12px 15px; color:#666; font-size:14px;">
@@ -67,7 +70,7 @@
           📁 Chọn ảnh QR
           <input id="qrImageInput" type="file" accept="image/*" style="display:none;">
         </label>
-        <button onclick="closeScanModal()" style="padding:10px 14px; border:none; border-radius:8px; background:#6c757d; color:white; cursor:pointer; font-weight:600;">Đóng</button>
+        <button id="closeScanButton" type="button" style="padding:10px 14px; border:none; border-radius:8px; background:#6c757d; color:white; cursor:pointer; font-weight:600;">Đóng</button>
       </div>
       <div id="scanResult" style="text-align:center; padding:15px; min-height:50px;"></div>
     </div>
@@ -86,6 +89,21 @@
     };
 
     (async () => {
+      let html5QrCode = null;
+
+      window.startScanOnViewer = startScanOnViewer;
+      window.closeScanModal = closeScanModal;
+
+      const qrImageInput = document.getElementById('qrImageInput');
+      if (qrImageInput) {
+        qrImageInput.addEventListener('change', event => {
+          const file = event.target.files && event.target.files[0];
+          if (file) {
+            handleImageScan(file);
+          }
+        });
+      }
+
       let firebaseConfig = FALLBACK_FIREBASE_CONFIG;
       try {
         const runtimeConfig = await window.getRuntimeConfig?.() || {};
@@ -102,7 +120,6 @@
 
       const db = firebase.database();
       const historyRef = db.ref('qrHistory');
-      let html5QrCode = null;
 
       async function loadQRInfo(maLo) {
         const loading = document.getElementById('loading');
@@ -159,12 +176,13 @@
         modal.style.display = 'flex';
         resultEl.innerHTML = '';
         document.getElementById('qrImageInput').value = '';
-        setTimeout(() => startScanner(), 250);
+        startScanner();
       }
 
       function closeScanModal() {
+        const modal = document.getElementById('scanModal');
+        modal.style.display = 'none';
         stopScanner();
-        document.getElementById('scanModal').style.display = 'none';
       }
 
       function handleScanResult(decodedText) {
@@ -177,7 +195,7 @@
         }
       }
 
-      function startScanner() {
+      async function startScanner() {
         const resultEl = document.getElementById('scanResult');
         if (html5QrCode) {
           stopScanner();
@@ -190,14 +208,24 @@
         html5QrCode = new Html5Qrcode('reader');
         resultEl.innerHTML = '<div style="color:#0d6efd;">Đang mở camera...</div>';
 
-        html5QrCode.start(
-          { facingMode: 'environment' },
-          { fps: 10, qrbox: { width: 280, height: 280 } },
-          (decodedText) => handleScanResult(decodedText),
-          () => {}
-        ).catch(() => {
+        try {
+          const cameras = await Html5Qrcode.getCameras();
+          if (!cameras || cameras.length === 0) {
+            resultEl.innerHTML = '<div style="color:#d9534f;">Không tìm thấy camera nào trên thiết bị này.</div>';
+            return;
+          }
+
+          const preferredCamera = cameras.find(camera => /back|rear|environment/i.test(camera.label)) || cameras[0];
+          await html5QrCode.start(
+            { deviceId: { exact: preferredCamera.id } },
+            { fps: 10, qrbox: { width: 280, height: 280 } },
+            (decodedText) => handleScanResult(decodedText),
+            () => {}
+          );
+        } catch (err) {
+          console.error('Lỗi mở camera QR:', err);
           resultEl.innerHTML = '<div style="color:#d9534f;">Không thể mở camera. Bạn có thể chọn ảnh QR từ máy.</div>';
-        });
+        }
       }
 
       function handleImageScan(file) {
@@ -227,15 +255,14 @@
         }
       }
 
-      document.getElementById('qrImageInput').addEventListener('change', event => {
-        const file = event.target.files && event.target.files[0];
-        if (file) {
-          handleImageScan(file);
+      document.getElementById('closeScanIcon').addEventListener('click', closeScanModal);
+      document.getElementById('closeScanButton').addEventListener('click', closeScanModal);
+
+      document.getElementById('scanModal').addEventListener('click', (event) => {
+        if (event.target === document.getElementById('scanModal')) {
+          closeScanModal();
         }
       });
-
-      window.startScanOnViewer = startScanOnViewer;
-      window.closeScanModal = closeScanModal;
 
       const urlParams = new URLSearchParams(window.location.search);
       const maLo = urlParams.get('q');

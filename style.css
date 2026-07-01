@@ -546,9 +546,37 @@ button.delete-btn:hover {
 }
 
 .page-viewer .close-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  background: transparent;
   font-size: 28px;
   cursor: pointer;
   color: #666;
+  line-height: 1;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.close-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  font-size: 28px;
+  line-height: 1;
+  cursor: pointer;
+  color: #666;
+  appearance: none;
+  -webkit-appearance: none;
 }
 
 .page-viewer #reader {
