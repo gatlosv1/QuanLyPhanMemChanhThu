@@ -1,4 +1,5 @@
 require('dotenv').config({ path: require('path').join(__dirname, '.env') });
+const crypto = require('crypto');
 const { initializeApp } = require('firebase/app');
 const { getFirestore, collection, query, where, getDocs, addDoc } = require('firebase/firestore');
 
@@ -19,6 +20,7 @@ const db = getFirestore(app);
 (async () => {
   const username = 'KhuSX';
   const password = '200695';
+  const passwordHash = crypto.createHash('sha256').update(password, 'utf8').digest('hex');
   const q = query(collection(db, 'accounts'), where('username', '==', username));
   const snapshot = await getDocs(q);
 
@@ -29,7 +31,7 @@ const db = getFirestore(app);
 
   const docRef = await addDoc(collection(db, 'accounts'), {
     username,
-    password,
+    passwordHash,
     role: 'admin',
     page: 'index.html',
     label: 'index.html',

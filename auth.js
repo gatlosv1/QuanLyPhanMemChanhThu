@@ -1,9 +1,5 @@
 let authAccountsCache = [];
 
-const fallbackAuthAccounts = [
-  { username: 'KhuSX', password: '200695', role: 'admin', page: 'quan-ly.html', label: 'Admin' }
-];
-
 const pagePermissionTemplates = {
   'index.html': {
     'index.view': true,
@@ -97,6 +93,13 @@ function buildApiUrl(path) {
   return `${getApiBaseUrl()}${normalizedPath}`;
 }
 
+async function sha256(text) {
+  if (typeof crypto === 'undefined' || !crypto.subtle) return '';
+  const input = new TextEncoder().encode(String(text || ''));
+  const digest = await crypto.subtle.digest('SHA-256', input);
+  return Array.from(new Uint8Array(digest)).map(byte => byte.toString(16).padStart(2, '0')).join('');
+}
+
 async function fetchJson(url, fallback = null) {
   try {
     const response = await fetch(buildApiUrl(url), { cache: 'no-store' });
@@ -144,13 +147,8 @@ async function getAuthAccounts(forceRefresh = false) {
     return authAccountsCache;
   }
 
-  const backendAccounts = await fetchJson('/api/auth/accounts', []);
   const firebaseAccounts = await getFirebaseAccounts();
-  const merged = [
-    ...fallbackAuthAccounts,
-    ...(Array.isArray(backendAccounts) ? backendAccounts : []),
-    ...(Array.isArray(firebaseAccounts) ? firebaseAccounts : [])
-  ];
+  const merged = Array.isArray(firebaseAccounts) ? firebaseAccounts : [];
 
   const dedupedByUsername = new Map();
   merged.forEach((account) => {
@@ -173,7 +171,15 @@ async function refreshAuthAccounts() {
 async function loginUser(username, password) {
   const accounts = await getAuthAccounts(true);
   const account = accounts.find(item => item.username === username);
-  if (!account || account.password !== password) {
+  if (!account) {
+    return { ok: false, message: 'Tên đăng nhập hoặc mật khẩu không đúng.' };
+  }
+
+  const candidateHash = await sha256(password);
+  const isLegacyPlaintext = typeof account.password === 'string' && account.password === password;
+  const isHashMatch = typeof account.passwordHash === 'string' && account.passwordHash === candidateHash;
+
+  if (!isLegacyPlaintext && !isHashMatch) {
     return { ok: false, message: 'Tên đăng nhập hoặc mật khẩu không đúng.' };
   }
 
@@ -201,15 +207,28 @@ function requirePageAccess(currentPageName = getCurrentPageName()) {
 
   const allowedPage = session.page || 'dang-nhap.html';
   const isAdmin = session.role === 'admin';
-  const isAllowedPage = currentPageName === allowedPage || currentPageName === 'dang-nhap.html' || currentPageName === 'quan-ly.html';
-  const isManagementBackLink = currentPageName === 'quan-ly.html' && ['viewer.html', 'index.html', 'TaoQR.html'].includes(allowedPage);
+  const isAllowedPage = currentPageName === allowedPage || currentPageName === 'dang-nhap.html';
 
-  if (!isAdmin && !isAllowedPage && !isManagementBackLink) {
+  if (!isAdmin && !isAllowedPage) {
     window.location.href = allowedPage;
     return false;
   }
 
   return true;
+}
+
+function isSafeRelativePage(targetPage) {
+  if (!targetPage || typeof targetPage !== 'string') return false;
+  if (targetPage.startsWith('http://') || targetPage.startsWith('https://')) return false;
+  if (targetPage.startsWith('//')) return false;
+  if (targetPage.includes('..')) return false;
+  return /^[A-Za-z0-9._-]+\.html$/.test(targetPage);
+}
+
+function resolvePostLoginPage(requestedPage, accountPage) {
+  if (isSafeRelativePage(requestedPage)) return requestedPage;
+  if (isSafeRelativePage(accountPage)) return accountPage;
+  return 'dang-nhap.html';
 }
 
 function goToManagementPage() {
@@ -238,3 +257,4 @@ window.goToManagementPage = goToManagementPage;
 window.logoutUser = logoutUser;
 window.hasPermission = hasPermission;
 window.pagePermissionTemplates = pagePermissionTemplates;
+window.resolvePostLoginPage = resolvePostLoginPage;

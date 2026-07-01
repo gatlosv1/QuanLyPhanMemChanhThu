@@ -52,7 +52,7 @@ router.post('/qr/save', authenticateRequest, authorizeRole(['admin', 'editor']),
     res.json({ success: true, message: 'QR code đã được lưu', ma_lo });
   } catch (err) {
     console.error('Lỗi khi lưu QR:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -79,7 +79,7 @@ router.get('/qr/list', authenticateRequest, authorizeRole(['admin', 'viewer', 'e
     res.json(result.recordset);
   } catch (err) {
     console.error('Lỗi khi lấy danh sách QR:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 

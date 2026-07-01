@@ -108,7 +108,9 @@
           return;
         }
 
-        const targetPage = redirect || result.account.page;
+        const targetPage = window.resolvePostLoginPage
+          ? window.resolvePostLoginPage(redirect, result.account.page)
+          : (result.account.page || 'dang-nhap.html');
         window.location.href = targetPage;
       });
 

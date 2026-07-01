@@ -235,6 +235,15 @@
     <script>
       lucide.createIcons();
 
+      async function hashPassword(password) {
+        if (typeof crypto === 'undefined' || !crypto.subtle) {
+          throw new Error('Trình duyệt không hỗ trợ mã hóa mật khẩu.');
+        }
+        const encoded = new TextEncoder().encode(String(password || ''));
+        const digest = await crypto.subtle.digest('SHA-256', encoded);
+        return Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, '0')).join('');
+      }
+
       (async function () {
         const currentUser = window.getCurrentUser ? window.getCurrentUser() : null;
         const showRegisterBtn = document.getElementById('showRegisterBtn');
@@ -407,9 +416,11 @@
                 return;
               }
 
+              const passwordHash = await hashPassword(password);
+
               await db.collection('accounts').add({
                 username,
-                password,
+                passwordHash,
                 role,
                 page,
                 permissions,

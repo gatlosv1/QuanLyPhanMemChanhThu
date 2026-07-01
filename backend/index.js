@@ -11,42 +11,22 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 const rootDir = path.join(__dirname, '..');
 
-function getEnv(name, fallback = '') {
-  return process.env[name] || fallback;
-}
-
-function getRuntimeSettings() {
-  return {
-    resetPassword: getEnv('RESET_PASSWORD', ''),
-    historyPassword: getEnv('HISTORY_PASSWORD', ''),
-    deletePassword: getEnv('DELETE_PASSWORD', '')
-  };
-}
-
-function getAuthAccounts() {
-  const raw = getEnv('AUTH_ACCOUNTS_JSON', getEnv('AUTH_ACCOUNTS', '[]'));
-  try {
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch (error) {
-    return [];
-  }
+function getAllowedOrigins() {
+  const raw = process.env.CORS_ORIGINS || 'http://localhost:3001,http://127.0.0.1:3001';
+  return raw.split(',').map(item => item.trim()).filter(Boolean);
 }
 
 // Middleware
-app.use(cors());
+const allowedOrigins = new Set(getAllowedOrigins());
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.has(origin)) return callback(null, true);
+    return callback(new Error('CORS blocked'));
+  }
+}));
 app.use(express.json());
 app.use(rateLimit({ windowMs: 60 * 1000, maxRequests: 60 }));
 app.use(express.static(rootDir));
-
-// Runtime config endpoints
-app.get('/api/config', (req, res) => {
-  res.json(getRuntimeSettings());
-});
-
-app.get('/api/auth/accounts', (req, res) => {
-  res.json(getAuthAccounts());
-});
 
 // API Routes
 app.use('/api', apiRoutes);

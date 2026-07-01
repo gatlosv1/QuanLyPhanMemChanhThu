@@ -39,13 +39,23 @@
           <div class="info-item"><div class="label">Vi Tri</div><div class="value" id="vitriDisplay"></div></div>
         </div>
 
-        <div style="text-align:center; margin-top:30px;">
-          <button class="scan-btn" onclick="startScanOnViewer()">Quet QR Moi</button>
-        </div>
       </div>
 
       <div id="error" style="display:none; color:red; text-align:center; padding:40px;">
         Khong tim thay thong tin cho ma QR nay.
+      </div>
+
+      <div style="text-align:center; margin-top:20px; display:flex; gap:10px; flex-wrap:wrap; justify-content:center;">
+        <button class="scan-btn" onclick="startScanForMode('qr-check')">Quet QR de Check</button>
+        <button class="scan-btn" onclick="startScanForMode('barcode-check')">Quet Ma Vach</button>
+        <button class="scan-btn" onclick="startScanForMode('report')">Quet Nhap Bao Cao San Luong</button>
+      </div>
+
+      <div style="margin-top:24px; border:1px solid #e5e7eb; border-radius:12px; padding:14px; background:#f8fafc;">
+        <div style="font-weight:700; margin-bottom:8px;">Bao Cao San Luong (Quet tung tem)</div>
+        <div style="font-size:14px; margin-bottom:6px;">So luot quet trong phien: <strong id="reportSessionCount">0</strong></div>
+        <div style="font-size:14px; margin-bottom:6px;">Ma vua ghi nhan: <strong id="reportLastCode">-</strong></div>
+        <div style="font-size:14px;">Thoi gian: <strong id="reportLastTime">-</strong></div>
       </div>
     </div>
   </div>
@@ -54,16 +64,20 @@
   <div id="scanModal" class="modal">
     <div class="modal-content">
       <div class="modal-header">
-        <h3>Quet Ma QR Code</h3>
+        <h3 id="scanTitle">Quet Ma</h3>
         <span onclick="closeScanModal()" class="close-btn">&times;</span>
       </div>
       <div id="reader"></div>
       <div id="scanResult" style="text-align:center; padding:15px; min-height:50px;"></div>
+      <div style="text-align:center; padding:0 15px 15px;">
+        <button type="button" class="scan-btn" onclick="closeScanModal()">Dong Camera (Esc)</button>
+      </div>
     </div>
   </div>
 
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
 
   <script>
@@ -80,9 +94,144 @@
 
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
+    const firestoreDb = firebase.firestore();
     const historyRef = db.ref('qrHistory');
 
     let html5QrCode = null;
+    let currentScanMode = 'qr-check';
+    let reportSessionCount = 0;
+    let lastReportScanValue = '';
+    let lastReportScanAt = 0;
+
+    function setScanResultMessage(message, color) {
+      const box = document.getElementById('scanResult');
+      box.textContent = message;
+      box.style.color = color || '#111827';
+    }
+
+    function toMod97NumericString(value) {
+      const source = String(value || '').toUpperCase();
+      let out = '';
+      for (const ch of source) {
+        if (ch >= '0' && ch <= '9') {
+          out += ch;
+          continue;
+        }
+        if (ch >= 'A' && ch <= 'Z') {
+          out += String(ch.charCodeAt(0) - 55);
+        }
+      }
+      return out;
+    }
+
+    function mod97FromNumericString(numericStr) {
+      let remainder = 0n;
+      for (const digit of numericStr) {
+        remainder = (remainder * 10n + BigInt(digit)) % 97n;
+      }
+      return remainder;
+    }
+
+    function generateCheckDigit_Mod97(baseCodeNoHyphen) {
+      const numericSource = toMod97NumericString(baseCodeNoHyphen) + '00';
+      const remainder = mod97FromNumericString(numericSource);
+      let check = 98n - remainder;
+      if (check === 98n) check = 0n;
+      return String(check).padStart(2, '0');
+    }
+
+    function validateBarcodeCode(code) {
+      const parts = String(code || '').toUpperCase().split('-');
+      if (parts.length !== 5) return false;
+      if (parts[0] !== 'BTP') return false;
+      if (!/^[A-Z0-9]{2,3}$/.test(parts[1])) return false;
+      if (!/^\d{6}$/.test(parts[2])) return false;
+      if (!/^\d{5}$/.test(parts[3])) return false;
+      if (!/^\d{2}$/.test(parts[4])) return false;
+      const baseNoHyphen = `${parts[0]}${parts[1]}${parts[2]}${parts[3]}`;
+      const expected = generateCheckDigit_Mod97(baseNoHyphen);
+      return expected === parts[4];
+    }
+
+    function parseBarcodeCode(code) {
+      const upper = String(code || '').toUpperCase();
+      if (!validateBarcodeCode(upper)) return null;
+      const parts = upper.split('-');
+      return {
+        fullCode: upper,
+        loaiSP: parts[1],
+        ngayCode: parts[2],
+        soLo: parts[3],
+        checkDigit: parts[4],
+        stt: parseInt(parts[3], 10) || 0
+      };
+    }
+
+    function normalizeScannedValue(decodedText) {
+      const text = String(decodedText || '').trim();
+      if (!text) return '';
+
+      if (/^https?:\/\//i.test(text)) {
+        try {
+          const parsed = new URL(text);
+          if (parsed.origin !== window.location.origin) return '';
+          if (!(parsed.pathname.endsWith('/viewer.html') || parsed.pathname === '/viewer.html')) return '';
+          const q = parsed.searchParams.get('q');
+          return q ? q.trim() : '';
+        } catch (error) {
+          return '';
+        }
+      }
+
+      if (text.startsWith('viewer.html?q=')) {
+        return decodeURIComponent(text.slice('viewer.html?q='.length));
+      }
+
+      if (text.startsWith('q=')) {
+        return decodeURIComponent(text.slice(2));
+      }
+
+      return text;
+    }
+
+    async function submitProductionReport(scannedCode, sourceType) {
+      if (!scannedCode) return;
+
+      const parsed = parseBarcodeCode(scannedCode);
+      if (!parsed) {
+        throw new Error('Che do bao cao chi nhan ma vach BTP hop le.');
+      }
+
+      const now = new Date();
+      const yyyy = 2000 + parseInt(parsed.ngayCode.slice(0, 2), 10);
+      const mm = parseInt(parsed.ngayCode.slice(2, 4), 10) - 1;
+      const dd = parseInt(parsed.ngayCode.slice(4, 6), 10);
+      const ngaySanXuat = new Date(yyyy, mm, dd);
+
+      await firestoreDb.collection('printHistory').add({
+        maBTP: parsed.fullCode,
+        sku: parsed.loaiSP,
+        tenTP: `SCAN-${parsed.loaiSP}`,
+        quyCach: '1',
+        soLuong: 1,
+        sttDau: parsed.stt,
+        sttCuoi: parsed.stt,
+        timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+        source: 'scan-report',
+        sourceType,
+        scannedCode: parsed.fullCode,
+        checkDigit: parsed.checkDigit,
+        ngaySanXuat: ngaySanXuat.toISOString().slice(0, 10),
+        scannedBy: (window.getCurrentUser && window.getCurrentUser()?.username) || 'unknown',
+        scannedAtClient: now.toISOString()
+      });
+
+      reportSessionCount += 1;
+      document.getElementById('reportSessionCount').textContent = String(reportSessionCount);
+      document.getElementById('reportLastCode').textContent = parsed.fullCode;
+      document.getElementById('reportLastTime').textContent = now.toLocaleString('vi-VN');
+      setScanResultMessage(`Da ghi nhan TEM DAT +1, STT IN = ${parsed.stt}`, '#047857');
+    }
 
     async function loadQRInfo(maLo) {
       const loading = document.getElementById('loading');
@@ -135,10 +284,17 @@
       }
     }
 
-    function startScanOnViewer() {
+    function startScanForMode(mode) {
+      currentScanMode = mode;
+      const titleMap = {
+        'qr-check': 'Quet QR de Check',
+        'barcode-check': 'Quet Ma Vach de Check',
+        report: 'Quet Nhap Bao Cao San Luong'
+      };
+      document.getElementById('scanTitle').textContent = titleMap[mode] || 'Quet Ma';
       document.getElementById('scanModal').style.display = 'flex';
-      document.getElementById('scanResult').innerHTML = '';
-      startScanner();
+      setScanResultMessage('San sang quet...', '#475569');
+      startScanner(mode);
     }
 
     function closeScanModal() {
@@ -146,20 +302,91 @@
       document.getElementById('scanModal').style.display = 'none';
     }
 
-    function startScanner() {
+    function handleEscToCloseScanner(event) {
+      if (event.key !== 'Escape') return;
+      const modal = document.getElementById('scanModal');
+      if (modal && modal.style.display === 'flex') {
+        closeScanModal();
+      }
+    }
+
+    function startScanner(mode) {
       if (html5QrCode) stopScanner();
       html5QrCode = new Html5Qrcode('reader');
 
+      const scanConfig = { fps: 10, qrbox: { width: 280, height: 280 } };
+      if (typeof Html5QrcodeSupportedFormats !== 'undefined') {
+        if (mode === 'qr-check') {
+          scanConfig.formatsToSupport = [Html5QrcodeSupportedFormats.QR_CODE];
+        } else if (mode === 'barcode-check') {
+          scanConfig.formatsToSupport = [
+            Html5QrcodeSupportedFormats.CODE_128,
+            Html5QrcodeSupportedFormats.CODE_39,
+            Html5QrcodeSupportedFormats.EAN_13,
+            Html5QrcodeSupportedFormats.EAN_8,
+            Html5QrcodeSupportedFormats.UPC_A,
+            Html5QrcodeSupportedFormats.UPC_E
+          ];
+        } else {
+          scanConfig.formatsToSupport = [
+            Html5QrcodeSupportedFormats.QR_CODE,
+            Html5QrcodeSupportedFormats.CODE_128,
+            Html5QrcodeSupportedFormats.CODE_39,
+            Html5QrcodeSupportedFormats.EAN_13,
+            Html5QrcodeSupportedFormats.EAN_8,
+            Html5QrcodeSupportedFormats.UPC_A,
+            Html5QrcodeSupportedFormats.UPC_E
+          ];
+        }
+      }
+
       html5QrCode.start(
         { facingMode: 'environment' },
-        { fps: 10, qrbox: { width: 280, height: 280 } },
-        function(decodedText) {
-          stopScanner();
-          closeScanModal();
-          if (decodedText.includes('viewer.html')) {
-            window.location.href = decodedText;
-          } else {
-            window.location.href = 'viewer.html?q=' + encodeURIComponent(decodedText);
+        scanConfig,
+        async function(decodedText) {
+          const scannedValue = normalizeScannedValue(decodedText);
+          if (!scannedValue) {
+            setScanResultMessage('Noi dung quet khong hop le.', '#b91c1c');
+            return;
+          }
+
+          if (mode === 'qr-check') {
+            stopScanner();
+            closeScanModal();
+            loadQRInfo(scannedValue);
+            return;
+          }
+
+          if (mode === 'barcode-check') {
+            const upper = scannedValue.toUpperCase();
+            const parsed = parseBarcodeCode(upper);
+            if (!parsed) {
+              setScanResultMessage('Ma vach khong dung dinh dang BTP hoac sai check digit.', '#b91c1c');
+              return;
+            }
+            stopScanner();
+            closeScanModal();
+            alert(
+              'Ma vach hop le\n' +
+              `LoaiSP: ${parsed.loaiSP}\nNgay: ${parsed.ngayCode}\nSo lo: ${parsed.soLo}\nCheckDigit: ${parsed.checkDigit}`
+            );
+            loadQRInfo(parsed.fullCode);
+            return;
+          }
+
+          const now = Date.now();
+          const normalized = scannedValue.toUpperCase();
+          if (normalized === lastReportScanValue && now - lastReportScanAt < 1500) {
+            return;
+          }
+          lastReportScanValue = normalized;
+          lastReportScanAt = now;
+
+          try {
+            await submitProductionReport(normalized, 'barcode');
+            loadQRInfo(normalized);
+          } catch (error) {
+            setScanResultMessage('Khong ghi nhan duoc bao cao: ' + error.message, '#b91c1c');
           }
         },
         function() {}
@@ -175,6 +402,9 @@
         html5QrCode = null;
       }
     }
+
+    document.addEventListener('keydown', handleEscToCloseScanner);
+    window.addEventListener('beforeunload', stopScanner);
 
     const urlParams = new URLSearchParams(window.location.search);
     const maLo = urlParams.get('q');

@@ -1,3 +1,5 @@
+const crypto = require('crypto');
+
 const RATE_LIMIT_WINDOW_MS = 60 * 1000;
 const RATE_LIMIT_MAX_REQUESTS = 60;
 const rateLimitStore = new Map();
@@ -97,15 +99,24 @@ function validateQRPayload(req, res, next) {
 
 function authenticateRequest(req, res, next) {
   const authHeader = req.headers.authorization || '';
-  const expectedToken = process.env.API_TOKEN || 'demo-admin-token';
   const providedToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : '';
 
-  if (!providedToken || providedToken !== expectedToken) {
+  const expectedToken = process.env.API_TOKEN || '';
+  if (!expectedToken) {
+    return res.status(503).json({ error: 'API token is not configured' });
+  }
+
+  if (!providedToken) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
-  const roleHeader = req.headers['x-user-role'] || req.headers['x-role'] || 'admin';
-  req.user = { role: String(roleHeader).toLowerCase() };
+  const providedBuf = Buffer.from(providedToken);
+  const expectedBuf = Buffer.from(expectedToken);
+  if (providedBuf.length !== expectedBuf.length || !crypto.timingSafeEqual(providedBuf, expectedBuf)) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+
+  req.user = { role: String(process.env.API_ROLE || 'admin').toLowerCase() };
   next();
 }
 

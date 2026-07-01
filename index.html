@@ -9,6 +9,7 @@
     <script src="https://unpkg.com/lucide@latest"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
     
     <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
@@ -132,6 +133,9 @@
                             <label class="block text-sm font-medium mb-1">SKU</label>
                             <input id="sku" type="text" class="w-full px-4 py-3 border rounded-xl font-mono text-base" placeholder="TP101020203.01.001" oninput="updatePreview()">
 
+                            <label class="block text-sm font-medium mb-1 mt-4">Loại SP (2-3 ký tự)</label>
+                            <input id="loaiSP" type="text" maxlength="3" value="RI" class="w-full px-4 py-3 border rounded-xl font-mono text-base uppercase" placeholder="RI" oninput="this.value = this.value.toUpperCase(); updatePreview()">
+
                             <label class="block text-sm font-medium mb-1 mt-4">Tên Thành Phẩm</label>
                             <input id="tenTP" type="text" class="w-full px-4 py-3 border rounded-xl" placeholder="TP CẤP ĐÔNG SẦU RIÊNG..." oninput="updatePreview()">
                         </div>
@@ -186,6 +190,15 @@
                         <div class="flex justify-center bg-gray-50 p-6 rounded-xl">
                             <div id="previewLabel" class="label-preview"></div>
                         </div>
+                    </div>
+
+                    <div class="bg-white rounded-2xl shadow p-6">
+                        <h2 class="text-xl font-semibold mb-4">Xem Trước Mã Vạch</h2>
+                        <div class="bg-gray-50 p-4 rounded-xl overflow-x-auto">
+                            <svg id="barcodePreview" class="mx-auto"></svg>
+                        </div>
+                        <div id="barcodeValue" class="mt-3 font-mono text-sm text-slate-700 break-all"></div>
+                        <div id="barcodeStatus" class="mt-2 text-xs text-slate-500"></div>
                     </div>
 
                     <div class="bg-white rounded-2xl shadow overflow-hidden">
@@ -336,18 +349,154 @@
             document.getElementById('lotModal').style.display = 'none';
         }
 
+        function escapeHtml(value) {
+            return String(value || '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function toYYMMDD(inputDate) {
+            if (!inputDate || !/^\d{4}-\d{2}-\d{2}$/.test(String(inputDate))) {
+                const now = new Date();
+                const yy = String(now.getFullYear()).slice(-2);
+                const mm = String(now.getMonth() + 1).padStart(2, '0');
+                const dd = String(now.getDate()).padStart(2, '0');
+                return `${yy}${mm}${dd}`;
+            }
+            const [yyyy, mm, dd] = String(inputDate).split('-');
+            return `${yyyy.slice(-2)}${mm}${dd}`;
+        }
+
+        function normalizeLoaiSP(rawLoai, skuValue) {
+            const cleanedLoai = String(rawLoai || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+            if (cleanedLoai.length >= 2) return cleanedLoai.slice(0, 3);
+
+            const skuPrefix = String(skuValue || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 3);
+            if (skuPrefix.length >= 2) return skuPrefix;
+
+            return 'RI';
+        }
+
+        function toMod97NumericString(value) {
+            const source = String(value || '').toUpperCase();
+            let out = '';
+            for (const ch of source) {
+                if (ch >= '0' && ch <= '9') {
+                    out += ch;
+                    continue;
+                }
+                if (ch >= 'A' && ch <= 'Z') {
+                    out += String(ch.charCodeAt(0) - 55);
+                }
+            }
+            return out;
+        }
+
+        function mod97FromNumericString(numericStr) {
+            let remainder = 0n;
+            for (const digit of numericStr) {
+                remainder = (remainder * 10n + BigInt(digit)) % 97n;
+            }
+            return remainder;
+        }
+
+        function generateCheckDigit_Mod97(baseCodeNoHyphen) {
+            const numericSource = toMod97NumericString(baseCodeNoHyphen) + '00';
+            const remainder = mod97FromNumericString(numericSource);
+            let check = 98n - remainder;
+            if (check === 98n) check = 0n;
+            return String(check).padStart(2, '0');
+        }
+
+        function validateCheckDigit_Mod97(fullCode) {
+            const parts = String(fullCode || '').toUpperCase().split('-');
+            if (parts.length !== 5) return false;
+            if (!/^\d{2}$/.test(parts[4])) return false;
+            const baseNoHyphen = `${parts[0]}${parts[1]}${parts[2]}${parts[3]}`;
+            return generateCheckDigit_Mod97(baseNoHyphen) === parts[4];
+        }
+
+        function buildBarcodeCode() {
+            const prefix = 'BTP';
+            const sku = document.getElementById('sku')?.value || '';
+            const loaiInput = document.getElementById('loaiSP')?.value || '';
+            const loaiSP = normalizeLoaiSP(loaiInput, sku);
+            const ngay = toYYMMDD(document.getElementById('ngaySX')?.value || '');
+            const soLo = String(parseInt(document.getElementById('sttDau')?.value, 10) || 1).padStart(5, '0');
+
+            const baseNoHyphen = `${prefix}${loaiSP}${ngay}${soLo}`;
+            const checkDigit = generateCheckDigit_Mod97(baseNoHyphen);
+            return `${prefix}-${loaiSP}-${ngay}-${soLo}-${checkDigit}`;
+        }
+
+        function updateBarcodePreview() {
+            const code = buildBarcodeCode();
+            const isValid = validateCheckDigit_Mod97(code);
+
+            const valueEl = document.getElementById('barcodeValue');
+            const statusEl = document.getElementById('barcodeStatus');
+            if (valueEl) valueEl.textContent = code;
+            if (statusEl) statusEl.textContent = isValid
+                ? 'Check digit hợp lệ (MOD 97,10)'
+                : 'Check digit không hợp lệ';
+
+            if (typeof JsBarcode !== 'function') {
+                if (statusEl) statusEl.textContent = 'Không tải được thư viện mã vạch (JsBarcode).';
+                return;
+            }
+
+            try {
+                JsBarcode('#barcodePreview', code, {
+                    format: 'CODE128',
+                    lineColor: '#111827',
+                    width: 2,
+                    height: 78,
+                    displayValue: true,
+                    fontSize: 14,
+                    margin: 8,
+                    textMargin: 4
+                });
+            } catch (error) {
+                if (statusEl) statusEl.textContent = 'Không tạo được mã vạch: ' + error.message;
+            }
+        }
+
         function renderLotList(filtered = historyLots) {
-            const html = filtered.map(item => `
-                <div onclick="selectLot('${item.ma_lo}')" class="px-4 py-3 hover:bg-indigo-50 border-b cursor-pointer">
-                    <div class="font-bold font-mono">${item.ma_lo}</div>
-                    <div class="text-gray-600 text-xs">
-                        ${item.ngay_display || ''} 
-                        ${item.bienso ? `| ${item.bienso}` : ''} 
-                        ${item.tongkl ? `| ${item.tongkl}kg` : ''}
-                    </div>
-                </div>
-            `).join('');
-            document.getElementById('lotList').innerHTML = html || '<p class="p-8 text-center text-gray-400">Không tìm thấy kết quả</p>';
+            const lotList = document.getElementById('lotList');
+            lotList.textContent = '';
+
+            if (!filtered.length) {
+                const empty = document.createElement('p');
+                empty.className = 'p-8 text-center text-gray-400';
+                empty.textContent = 'Không tìm thấy kết quả';
+                lotList.appendChild(empty);
+                return;
+            }
+
+            filtered.forEach((item) => {
+                const row = document.createElement('div');
+                row.className = 'px-4 py-3 hover:bg-indigo-50 border-b cursor-pointer';
+                row.addEventListener('click', () => selectLot(item.ma_lo));
+
+                const lot = document.createElement('div');
+                lot.className = 'font-bold font-mono';
+                lot.textContent = item.ma_lo || '';
+
+                const meta = document.createElement('div');
+                meta.className = 'text-gray-600 text-xs';
+                const parts = [];
+                if (item.ngay_display) parts.push(String(item.ngay_display));
+                if (item.bienso) parts.push(String(item.bienso));
+                if (item.tongkl) parts.push(`${String(item.tongkl)}kg`);
+                meta.textContent = parts.join(' | ');
+
+                row.appendChild(lot);
+                row.appendChild(meta);
+                lotList.appendChild(row);
+            });
         }
 
         function filterLotList() {
@@ -424,7 +573,7 @@
             const deleteAllowed = can('index.deleteHistory');
             const resetAllowed = can('index.resetStt');
 
-            const inputIds = ['maBTP', 'quyCach', 'vungNguyenLieu', 'sku', 'tenTP', 'sttDau', 'soLuongTem', 'ngaySX'];
+            const inputIds = ['maBTP', 'quyCach', 'vungNguyenLieu', 'sku', 'loaiSP', 'tenTP', 'sttDau', 'soLuongTem', 'ngaySX'];
             inputIds.forEach((id) => {
                 const el = document.getElementById(id);
                 if (!el) return;
@@ -574,21 +723,29 @@
                 const kg = parseFloat(item.quyCach) || 20;
                 const tongKL = (item.soLuong * kg).toFixed(0);
                 const isChecked = selectedHistoryIds.has(item.id);
+                const safeId = escapeHtml(item.id);
+                const safeTime = escapeHtml(new Date(item.timestamp?.toDate() || item.timestamp).toLocaleString('vi-VN'));
+                const safeMaBTP = escapeHtml(item.maBTP || '');
+                const safeSku = escapeHtml(item.sku || '');
+                const safeTenTP = escapeHtml(item.tenTP || '');
+                const safeSoLuong = escapeHtml(item.soLuong || 0);
+                const safeQuyCach = escapeHtml(item.quyCach || '');
+                const safeTongKL = escapeHtml(tongKL);
                 
                 html += `
-                    <tr class="border-b hover:bg-gray-50" data-id="${item.id}">
+                    <tr class="border-b hover:bg-gray-50" data-id="${safeId}">
                         <td class="px-4 py-3 text-center">
                             <input type="checkbox" class="history-checkbox" 
-                                   onchange="toggleHistorySelection('${item.id}', this)"
+                                   onchange="toggleHistorySelection('${safeId}', this)"
                                    ${isChecked ? 'checked' : ''}>
                         </td>
-                        <td class="px-4 py-3 text-xs">${new Date(item.timestamp?.toDate() || item.timestamp).toLocaleString('vi-VN')}</td>
-                        <td class="px-4 py-3 font-mono">${item.maBTP || ''}</td>
-                        <td class="px-4 py-3 font-mono">${item.sku || ''}</td>
-                        <td class="px-4 py-3">${item.tenTP || ''}</td>
-                        <td class="px-4 py-3 text-center font-semibold">${item.soLuong || 0}</td>
-                        <td class="px-4 py-3 text-right">${item.quyCach}</td>
-                        <td class="px-4 py-3 text-right font-bold">${tongKL} kg</td>
+                        <td class="px-4 py-3 text-xs">${safeTime}</td>
+                        <td class="px-4 py-3 font-mono">${safeMaBTP}</td>
+                        <td class="px-4 py-3 font-mono">${safeSku}</td>
+                        <td class="px-4 py-3">${safeTenTP}</td>
+                        <td class="px-4 py-3 text-center font-semibold">${safeSoLuong}</td>
+                        <td class="px-4 py-3 text-right">${safeQuyCach}</td>
+                        <td class="px-4 py-3 text-right font-bold">${safeTongKL} kg</td>
                     </tr>`;
             });
             html += `</tbody>`;
@@ -844,9 +1001,9 @@
             products.forEach((prod, i) => {
                 const tr = document.createElement('tr');
                 tr.className = 'cursor-pointer border-b hover:bg-gray-50';
-                tr.innerHTML = `<td class="px-4 py-3">${prod.stt || ''}</td>
-                                <td class="px-4 py-3 font-mono">${prod.maSP || ''}</td>
-                                <td class="px-4 py-3">${prod.tenTP || ''}</td>`;
+                tr.innerHTML = `<td class="px-4 py-3">${escapeHtml(prod.stt || '')}</td>
+                                <td class="px-4 py-3 font-mono">${escapeHtml(prod.maSP || '')}</td>
+                                <td class="px-4 py-3">${escapeHtml(prod.tenTP || '')}</td>`;
                 tr.onclick = () => selectRow(i, tr);
                 tbody.appendChild(tr);
             });
@@ -910,19 +1067,27 @@
             const ngayDG = document.getElementById('ngayDG').value ? 
                 document.getElementById('ngayDG').value.split('-').reverse().join('/') : ngaySX;
 
+            const safeSku = escapeHtml(sku);
+            const safeMaBTP = escapeHtml(maBTP);
+            const safeTenTP = escapeHtml(tenTP);
+            const safeQuyCach = escapeHtml(quyCach);
+            const safeVungFull = escapeHtml(vungFull);
+            const safeNgaySX = escapeHtml(ngaySX);
+            const safeNgayDG = escapeHtml(ngayDG);
+
             preview.innerHTML = `
                 <div style="font-family: Tahoma, Arial, sans-serif; font-size: 9.0pt; font-weight: 700; line-height: 1.15; padding: 3px 5px; height: 100%; letter-spacing: -0.2px;">
                     <div style="display: flex; justify-content: space-between; font-weight: 700; margin-bottom: 3px; font-size: 7.8pt;">
-                        <div>SKU: ${sku}</div>
-                        <div>Lot: ${maBTP}</div>
+                        <div>SKU: ${safeSku}</div>
+                        <div>Lot: ${safeMaBTP}</div>
                     </div>
                     <div style="font-size: 12.8pt; font-weight: 800; text-align: center; margin: 4px 0 6px; line-height: 1.05;">
-                        ${tenTP}
+                        ${safeTenTP}
                     </div>
                     <hr style="border: 1px solid #000; margin: 3px 0 5px;">
                     <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
-                        <div><strong>Quy Cách /SPEC</strong><br>Thùng/túi: ${quyCach}</div>
-                        <div style="text-align: right;"><strong>KHỐI LƯỢNG /WEIGHT</strong><br>${quyCach}</div>
+                        <div><strong>Quy Cách /SPEC</strong><br>Thùng/túi: ${safeQuyCach}</div>
+                        <div style="text-align: right;"><strong>KHỐI LƯỢNG /WEIGHT</strong><br>${safeQuyCach}</div>
                     </div>
                     <div style="display: flex; justify-content: space-between; margin-bottom: 3px;">
                         <div><strong>KHÁCH HÀNG/CUSTOMER</strong><br>CHANH THU GROUP</div>
@@ -931,13 +1096,14 @@
                             <span style="font-size: 15.8pt; font-weight: 800;">5200</span>
                         </div>
                     </div>
-                    <div style="margin-bottom: 3px; font-weight: 700;"><strong>VÙNG NGUYÊN LIỆU</strong><br>${vungFull}</div>
+                    <div style="margin-bottom: 3px; font-weight: 700;"><strong>VÙNG NGUYÊN LIỆU</strong><br>${safeVungFull}</div>
                     <div style="display: flex; justify-content: space-between; font-size: 9.0pt; margin-top: 5px;">
-                        <div>Ngày SX: ${ngaySX}</div>
-                        <div>Ngày ĐG: ${ngayDG}</div>
+                        <div>Ngày SX: ${safeNgaySX}</div>
+                        <div>Ngày ĐG: ${safeNgayDG}</div>
                     </div>
                 </div>
             `;
+            updateBarcodePreview();
             scheduleLoadProductSTT();
         }
 
@@ -946,11 +1112,16 @@
             const sttDau = parseInt(document.getElementById('sttDau').value) || 1;
             const soLuong = parseInt(document.getElementById('soLuongTem').value) || 1;
             document.getElementById('sttCuoi').value = sttDau + soLuong - 1;
+            updateBarcodePreview();
         }
 
         // ==================== RESET STT ====================
         function resetSTT() {
             if (!guardPermission('index.resetStt', 'Bạn không có quyền reset STT.')) return;
+            if (!runtimeConfig || !runtimeConfig.resetPassword) {
+                alert('Chức năng Reset STT đang bị khóa do chưa cấu hình mật khẩu trên server.');
+                return;
+            }
             const password = prompt("Nhập mật khẩu để Reset STT:");
             if (password === (runtimeConfig.resetPassword || '')) {
                 if (confirm("Reset STT về 1?")) {

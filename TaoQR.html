@@ -268,22 +268,120 @@
       historyRef.push(newEntry).then(function() { loadHistoryFromFirebase(); });
     }
 
+    function appendInfoLine(container, label, value) {
+      if (!value) return;
+      const line = document.createElement('div');
+      line.textContent = label ? (label + value) : value;
+      container.appendChild(line);
+    }
+
+    function renderQrText(item) {
+      const qtext = document.getElementById('qtext');
+      qtext.textContent = '';
+      appendInfoLine(qtext, '', item.ma_lo || '');
+      appendInfoLine(qtext, 'Ngay: ', item.ngay_display || '');
+      appendInfoLine(qtext, 'Tong KL: ', item.tongkl ? (item.tongkl + ' kg') : '');
+      appendInfoLine(qtext, 'Bien so: ', item.bienso || '');
+      appendInfoLine(qtext, 'Kho: ', item.khoDisplay || '');
+    }
+
+    function resolveViewerUrlFromScan(decodedText) {
+      const text = String(decodedText || '').trim();
+      if (!text) return null;
+
+      if (/^https?:\/\//i.test(text)) {
+        try {
+          const parsed = new URL(text);
+          const sameOrigin = parsed.origin === window.location.origin;
+          const isViewerPath = parsed.pathname.endsWith('/viewer.html') || parsed.pathname === '/viewer.html';
+          if (sameOrigin && isViewerPath) {
+            return parsed.pathname + parsed.search;
+          }
+        } catch (error) {
+          return null;
+        }
+        return null;
+      }
+
+      if (text.startsWith('viewer.html?q=')) {
+        return text;
+      }
+
+      return 'viewer.html?q=' + encodeURIComponent(text);
+    }
+
     function renderHistory(filtered) {
       const list = document.getElementById('historyList');
       const records = filtered || history;
+      list.textContent = '';
       if (records.length === 0) {
-        list.innerHTML = '<p style="text-align:center;padding:40px;color:#888;">Chua co du lieu lich su</p>';
+        const empty = document.createElement('p');
+        empty.style.textAlign = 'center';
+        empty.style.padding = '40px';
+        empty.style.color = '#888';
+        empty.textContent = 'Chua co du lieu lich su';
+        list.appendChild(empty);
         return;
       }
-      list.innerHTML = records.map(function(item) {
-        return '\n        <div class="history-item">\n          <div onclick="loadQRFromHistory(' + JSON.stringify(item).replace(/"/g,'&quot;') + ')" style="flex:1; cursor:pointer;">\n            <strong>' + item.ma_lo + '</strong><br>\n            <small>' + (item.timestamp || '') + ' ' + (item.bienso ? '| ' + item.bienso : '') + '</small>\n          </div>\n          <div style="display:flex; gap:6px;">\n            <button class="print-btn" onclick="event.stopImmediatePropagation(); printFromHistory(\'' + item.ma_lo + '\')">In</button>\n            ' + (currentPermission === 2 ? '<button class="delete-btn" onclick="event.stopImmediatePropagation(); deleteSingleHistory(\'' + item.ma_lo + '\')">Xoa</button>' : '') + '\n          </div>\n        </div>\n      ';
-      }).join('');
+
+      records.forEach(function(item) {
+        const row = document.createElement('div');
+        row.className = 'history-item';
+
+        const info = document.createElement('div');
+        info.style.flex = '1';
+        info.style.cursor = 'pointer';
+        info.addEventListener('click', function() { loadQRFromHistory(item); });
+
+        const strong = document.createElement('strong');
+        strong.textContent = item.ma_lo || '';
+        const br = document.createElement('br');
+        const small = document.createElement('small');
+        small.textContent = (item.timestamp || '') + (item.bienso ? (' | ' + item.bienso) : '');
+
+        info.appendChild(strong);
+        info.appendChild(br);
+        info.appendChild(small);
+
+        const actions = document.createElement('div');
+        actions.style.display = 'flex';
+        actions.style.gap = '6px';
+
+        const printBtn = document.createElement('button');
+        printBtn.className = 'print-btn';
+        printBtn.textContent = 'In';
+        printBtn.addEventListener('click', function(event) {
+          event.stopPropagation();
+          printFromHistory(item.ma_lo);
+        });
+        actions.appendChild(printBtn);
+
+        if (currentPermission === 2) {
+          const deleteBtn = document.createElement('button');
+          deleteBtn.className = 'delete-btn';
+          deleteBtn.textContent = 'Xoa';
+          deleteBtn.addEventListener('click', function(event) {
+            event.stopPropagation();
+            deleteSingleHistory(item.ma_lo);
+          });
+          actions.appendChild(deleteBtn);
+        }
+
+        row.appendChild(info);
+        row.appendChild(actions);
+        list.appendChild(row);
+      });
     }
 
     window.loadQRFromHistory = function(item) {
       document.getElementById('qrcode').innerHTML = '';
       new QRCode(document.getElementById('qrcode'), {text: item.ma_lo, width: 250, height: 250});
-      document.getElementById('qtext').innerHTML = '\n        <div>' + item.ma_lo + '</div>\n        <div>Ngay: ' + item.ngay_display + '</div>\n        ' + (item.tongkl ? '<div>Tong KL: ' + item.tongkl + ' kg</div>' : '') + '\n        ' + (item.bienso ? '<div>Bien so: ' + item.bienso + '</div>' : '') + '\n      ';
+      renderQrText({
+        ma_lo: item.ma_lo,
+        ngay_display: item.ngay_display,
+        tongkl: item.tongkl,
+        bienso: item.bienso
+      });
     };
 
     window.printFromHistory = function(ma_lo) {
@@ -350,7 +448,13 @@
       const viewerUrl = 'viewer.html?q=' + encodeURIComponent(ma_lo);
       new QRCode(document.getElementById('qrcode'), { text: viewerUrl, width: 250, height: 250 });
 
-      document.getElementById('qtext').innerHTML = '\n        <div>' + ma_lo + '</div>\n        <div>Ngay: ' + displayDate + '</div>\n        ' + (tongkl ? '<div>Tong KL: ' + tongkl + ' kg</div>' : '') + '\n        ' + (bienso ? '<div>Bien so: ' + bienso + '</div>' : '') + '\n        ' + (khoDisplay ? '<div>Kho: ' + khoDisplay + '</div>' : '') + '\n      ';
+      renderQrText({
+        ma_lo: ma_lo,
+        ngay_display: displayDate,
+        tongkl: tongkl,
+        bienso: bienso,
+        khoDisplay: khoDisplay
+      });
 
       saveToHistory({
         ma_lo: ma_lo,
@@ -394,14 +498,12 @@
         function(decodedText) {
           stopScanner();
           document.getElementById('scanModal').style.display = 'none';
-
-          if (decodedText.includes('viewer.html?q=')) {
-            window.location.href = decodedText;
-          } else if (decodedText.includes('?q=')) {
-            window.location.href = decodedText;
-          } else {
-            window.location.href = 'viewer.html?q=' + encodeURIComponent(decodedText);
+          const targetUrl = resolveViewerUrlFromScan(decodedText);
+          if (!targetUrl) {
+            alert('Noi dung QR khong hop le hoac khong duoc phep.');
+            return;
           }
+          window.location.href = targetUrl;
         },
         function() {}
       ).catch(function() {
