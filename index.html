@@ -381,16 +381,22 @@
         // ==================== PHẦN CHÍNH: FIREBASE VÀ DỮ LIỆU ====================
         let runtimeConfig = {};
         let db = null;
-        let counterRef = null;
+        let lastLoadedProductKey = '';
+        let productSttLoadTimer = null;
 
         async function initFirebase() {
-            runtimeConfig = await window.getRuntimeConfig();
-            const firebaseConfig = runtimeConfig || {};
-            if (!firebase.apps.find(app => app.name === '[DEFAULT]')) {
-                firebase.initializeApp(firebaseConfig);
+            try {
+                runtimeConfig = await window.getRuntimeConfig();
+                const firebaseConfig = runtimeConfig || {};
+                if (!firebase.apps.find(app => app.name === '[DEFAULT]')) {
+                    firebase.initializeApp(firebaseConfig);
+                }
+                db = firebase.firestore();
+            } catch (error) {
+                console.error('Init Firebase failed:', error);
+                db = null;
+                alert('Không kết nối được Firebase. Vui lòng kiểm tra cấu hình hoặc kết nối mạng.');
             }
-            db = firebase.firestore();
-            counterRef = db.collection("settings").doc("stt_counter");
         }
 
         // Danh sách sản phẩm và lịch sử in
@@ -399,23 +405,57 @@
         let printHistory = [];
         let selectedHistoryIds = new Set();
 
-        // ==================== LOAD/RESET SỐ THỨ TỰ IN ====================
-        async function loadLastSTT() {
-            if (!counterRef) return;
-            try {
-                const doc = await counterRef.get();
-                if (doc.exists) {
-                    document.getElementById('sttDau').value = doc.data().lastSTT || 1;
-                } else {
-                    await counterRef.set({ lastSTT: 1 });
-                }
-            } catch (e) { console.error(e); }
-            updateSttCuoi();
+        // ==================== LOAD/RESET SỐ THỨ TỰ IN THEO TỪNG MÃ TP ====================
+        function getProductKey() {
+            const sku = (document.getElementById('sku').value || '').trim();
+            const tenTP = (document.getElementById('tenTP').value || '').trim();
+            if (sku) return `p_${sku.replace(/[^a-zA-Z0-9_-]/g, '_')}`;
+            const fallback = tenTP || 'unknown';
+            return `p_${fallback.replace(/[^a-zA-Z0-9_-]/g, '_')}`;
         }
 
-        async function saveLastSTT(newSTT) {
-            if (!counterRef) return;
-            try { await counterRef.set({ lastSTT: newSTT }); } catch (e) {}
+        function scheduleLoadProductSTT(force = false) {
+            clearTimeout(productSttLoadTimer);
+            productSttLoadTimer = setTimeout(() => loadProductSTT(force), 250);
+        }
+
+        async function loadProductSTT(force = false) {
+            if (!db) return;
+            const productKey = getProductKey();
+            if (!productKey || (!force && productKey === lastLoadedProductKey)) return;
+
+            lastLoadedProductKey = productKey;
+            try {
+                const doc = await db.collection("productCounters").doc(productKey).get();
+                const saved = doc.exists ? doc.data() : null;
+                const nextStart = saved && Number.isFinite(saved.nextSTT) ? saved.nextSTT : 1;
+                document.getElementById('sttDau').value = nextStart;
+                updateSttCuoi();
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        async function saveProductSTT(nextSTT, sttDau, sttCuoi) {
+            if (!db) return;
+            const productKey = getProductKey();
+            if (!productKey) return;
+
+            try {
+                await db.collection("productCounters").doc(productKey).set({
+                    productKey,
+                    sku: document.getElementById('sku').value || '',
+                    tenTP: document.getElementById('tenTP').value || '',
+                    maBTP: document.getElementById('maBTP').value || '',
+                    nextSTT,
+                    lastSttDau: sttDau,
+                    lastSttCuoi: sttCuoi,
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                }, { merge: true });
+                lastLoadedProductKey = productKey;
+            } catch (e) {
+                console.error(e);
+            }
         }
 
         // ==================== TẢI DỮ LIỆU SẢN PHẨM TỪ FIREBASE ====================
@@ -642,7 +682,7 @@
                 logPrint();
                 const nextSTT = sttCuoi + 1;
                 document.getElementById('sttDau').value = nextSTT;
-                saveLastSTT(nextSTT);
+                saveProductSTT(nextSTT, sttDau, sttCuoi);
                 updateSttCuoi();
             } else {
                 alert(`✅ Đã in lại ${count} tem (KHÔNG ghi log - KHÔNG tăng tổng số lượng)`);
@@ -652,7 +692,11 @@
         
         // ==================== IMPORT DỮ LIỆU TỪ EXCEL ====================
         async function importExcel(input) {
-            if (!db) return;
+            if (!db) {
+                alert('Firebase chưa sẵn sàng. Vui lòng tải lại trang rồi thử lại.');
+                input.value = '';
+                return;
+            }
             const file = input.files[0];
             if (!file) return;
             const reader = new FileReader();
@@ -660,29 +704,57 @@
                 try {
                     const data = new Uint8Array(e.target.result);
                     const workbook = XLSX.read(data, { type: 'array' });
-                    const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { header: 1 });
+                    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+                    const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+
+                    const normalizeHeaderKey = (value) => String(value || '')
+                        .normalize('NFD')
+                        .replace(/[\u0300-\u036f]/g, '')
+                        .toLowerCase()
+                        .replace(/[^a-z0-9]/g, '');
+
+                    const headerRow = (rows[0] || []).map(normalizeHeaderKey);
+                    const sttHeaderIndex = headerRow.findIndex(h => ['stt', 'sothutu'].includes(h));
+                    const maSpHeaderIndex = headerRow.findIndex(h => ['masp', 'sku', 'masanpham'].includes(h));
+                    const tenTpHeaderIndex = headerRow.findIndex(h => ['tentp', 'tenthanhpham'].includes(h));
+
+                    const hasHeader = maSpHeaderIndex !== -1 || tenTpHeaderIndex !== -1;
+                    const startRow = hasHeader ? 1 : 0;
+                    const sttIndex = sttHeaderIndex !== -1 ? sttHeaderIndex : 0;
+                    const defaultMaSpIndex = rows[0] && rows[0].length >= 3 ? 1 : 0;
+                    const defaultTenTpIndex = rows[0] && rows[0].length >= 3 ? 2 : 1;
+                    const maSpIndex = maSpHeaderIndex !== -1 ? maSpHeaderIndex : defaultMaSpIndex;
+                    const tenTpIndex = tenTpHeaderIndex !== -1 ? tenTpHeaderIndex : defaultTenTpIndex;
 
                     const newProducts = [];
-                    for (let i = 1; i < jsonData.length; i++) {
-                        const row = jsonData[i];
-                        if (!row[1]) continue;
+                    for (let i = startRow; i < rows.length; i++) {
+                        const row = rows[i] || [];
+                        const maSP = String(row[maSpIndex] || '').trim();
+                        const tenTP = String(row[tenTpIndex] || '').trim();
+                        if (!maSP) continue;
+
                         newProducts.push({
-                            stt: parseInt(row[0]) || i,
-                            maSP: String(row[1]).trim(),
-                            tenTP: String(row[2] || '').trim(),
+                            stt: parseInt(row[sttIndex], 10) || (newProducts.length + 1),
+                            maSP,
+                            tenTP,
                             timestamp: new Date().toISOString()
                         });
                     }
 
                     if (newProducts.length === 0) return alert("Không tìm thấy dữ liệu!");
                     if (confirm(`Import ${newProducts.length} sản phẩm?`)) {
-                        for (const p of newProducts) {
-                            await db.collection("thanhpham").add(p);
-                        }
+                        const batch = db.batch();
+                        newProducts.forEach((p) => {
+                            const ref = db.collection("thanhpham").doc();
+                            batch.set(ref, p);
+                        });
+                        await batch.commit();
                         alert(`✅ Import thành công!`);
                     }
                 } catch (err) {
                     alert("Lỗi: " + err.message);
+                } finally {
+                    input.value = '';
                 }
             };
             reader.readAsArrayBuffer(file);
@@ -716,6 +788,7 @@
             document.getElementById('sku').value = p.maSP || '';
             document.getElementById('tenTP').value = p.tenTP || '';
             updatePreview();
+            loadProductSTT(true);
         }
 
         // ==================== LOAD DỮ LIỆU TỪ BẢNG ====================
@@ -790,6 +863,7 @@
                     </div>
                 </div>
             `;
+            scheduleLoadProductSTT();
         }
 
         // ==================== TÍNH STT CUỐI ====================
@@ -806,7 +880,7 @@
                 if (confirm("Reset STT về 1?")) {
                     document.getElementById('sttDau').value = 1;
                     document.getElementById('soLuongTem').value = 1;
-                    saveLastSTT(1);
+                    saveProductSTT(1, 1, 1);
                     updateSttCuoi();
                     alert("Đã reset STT thành công!");
                 }
@@ -838,7 +912,7 @@
             document.getElementById('ngayDG').value = today;
 
             await initFirebase();
-            loadLastSTT();
+            loadProductSTT(true);
             loadPrintHistory();
             setTimeout(() => {
                 loadProductsFromFirebase();
