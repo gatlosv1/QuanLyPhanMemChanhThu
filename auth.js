@@ -1,10 +1,65 @@
 let authAccountsCache = [];
 
 const fallbackAuthAccounts = [
-  { username: 'KhuSX', password: '200695', role: 'admin', page: 'index.html', label: 'Admin' },
-  { username: 'viewer', password: 'viewer123', role: 'viewer', page: 'viewer.html', label: 'Viewer' },
-  { username: 'qr', password: 'qr123', role: 'qr', page: 'TaoQR.html', label: 'QR' }
+  { username: 'KhuSX', password: '200695', role: 'admin', page: 'quan-ly.html', label: 'Admin' }
 ];
+
+const pagePermissionTemplates = {
+  'index.html': {
+    'index.view': true,
+    'index.edit': true,
+    'index.import': false,
+    'index.print': true,
+    'index.reprint': true,
+    'index.exportReport': true,
+    'index.deleteHistory': false,
+    'index.resetStt': false
+  },
+  'TaoQR.html': {
+    'qr.create': true,
+    'qr.scan': true,
+    'qr.history.view': true,
+    'qr.history.import': false,
+    'qr.history.export': false,
+    'qr.history.delete': false
+  },
+  'viewer.html': {
+    'viewer.view': true,
+    'viewer.scan': true
+  },
+  'quan-ly.html': {
+    'manager.view': true,
+    'manager.createAccount': true,
+    'manager.manageAccounts': true
+  }
+};
+
+function buildDefaultPermissions(page, role) {
+  if (role === 'admin') {
+    return { '*': true };
+  }
+  const template = pagePermissionTemplates[page] || {};
+  return { ...template };
+}
+
+function normalizePermissions(account) {
+  if (!account || typeof account !== 'object') return {};
+  if (account.role === 'admin') return { '*': true };
+
+  const defaults = buildDefaultPermissions(account.page, account.role);
+  const raw = account.permissions && typeof account.permissions === 'object' ? account.permissions : {};
+  return { ...defaults, ...raw };
+}
+
+function hasPermission(permissionKey) {
+  const session = getCurrentSession();
+  if (!session) return false;
+  if (session.role === 'admin') return true;
+
+  const permissions = session.permissions && typeof session.permissions === 'object' ? session.permissions : {};
+  if (permissions['*']) return true;
+  return !!permissions[permissionKey];
+}
 
 function getCurrentPageName() {
   return window.location.pathname.split('/').pop() || 'index.html';
@@ -12,17 +67,18 @@ function getCurrentPageName() {
 
 function getCurrentSession() {
   try {
-    return JSON.parse(localStorage.getItem('appSession'));
+    return JSON.parse(sessionStorage.getItem('appSession'));
   } catch (error) {
     return null;
   }
 }
 
 function saveSession(session) {
-  localStorage.setItem('appSession', JSON.stringify(session));
+  sessionStorage.setItem('appSession', JSON.stringify(session));
 }
 
 function clearSession() {
+  sessionStorage.removeItem('appSession');
   localStorage.removeItem('appSession');
 }
 
@@ -95,8 +151,17 @@ async function getAuthAccounts(forceRefresh = false) {
     ...(Array.isArray(backendAccounts) ? backendAccounts : []),
     ...(Array.isArray(firebaseAccounts) ? firebaseAccounts : [])
   ];
-  const unique = merged.filter((account, index, array) => index === array.findIndex(item => item.username === account.username));
-  authAccountsCache = unique;
+
+  const dedupedByUsername = new Map();
+  merged.forEach((account) => {
+    if (!account || !account.username) return;
+    dedupedByUsername.set(account.username, account);
+  });
+
+  authAccountsCache = Array.from(dedupedByUsername.values()).map((account) => ({
+    ...account,
+    permissions: normalizePermissions(account)
+  }));
   return authAccountsCache;
 }
 
@@ -116,7 +181,8 @@ async function loginUser(username, password) {
     username: account.username,
     role: account.role,
     page: account.role === 'admin' ? 'quan-ly.html' : (account.page || 'dang-nhap.html'),
-    label: account.label
+    label: account.label,
+    permissions: normalizePermissions(account)
   };
   saveSession(session);
   return { ok: true, account: session };
@@ -170,3 +236,5 @@ window.loginUser = loginUser;
 window.requirePageAccess = requirePageAccess;
 window.goToManagementPage = goToManagementPage;
 window.logoutUser = logoutUser;
+window.hasPermission = hasPermission;
+window.pagePermissionTemplates = pagePermissionTemplates;

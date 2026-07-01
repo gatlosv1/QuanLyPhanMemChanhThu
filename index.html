@@ -104,7 +104,7 @@
                             <label class="block text-sm font-medium mb-1">Mã BTP (Lot)</label>
                             <div class="flex gap-2">
                                 <input id="maBTP" type="text" class="flex-[2.5] px-4 py-3 border rounded-xl font-mono text-base" placeholder="D009MT15066-02-0K" oninput="updatePreview()">
-                                <button onclick="openLotModal()" class="flex-1 px-5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-medium flex items-center justify-center gap-2 text-sm">
+                                <button id="openLotBtn" onclick="openLotModal()" class="flex-1 px-5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-medium flex items-center justify-center gap-2 text-sm">
                                     <i class="fas fa-history"></i> <span class="hidden sm:inline">Chọn Lot</span>
                                 </button>
                             </div>
@@ -153,10 +153,10 @@
                     </div>
 
                     <div class="mt-8 flex gap-4">
-                        <button onclick="loadFromGrid()" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-4 rounded-xl font-medium">
+                        <button id="loadFromGridBtn" onclick="loadFromGrid()" class="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-4 rounded-xl font-medium">
                             <i class="fas fa-search"></i> Chọn từ Danh sách
                         </button>
-                        <button onclick="resetSTT()" class="flex-1 bg-red-600 hover:bg-red-700 text-white py-4 rounded-xl font-medium">
+                        <button id="resetSttBtn" onclick="resetSTT()" class="flex-1 bg-red-600 hover:bg-red-700 text-white py-4 rounded-xl font-medium">
                             <i class="fas fa-undo"></i> Reset STT
                         </button>
                     </div>
@@ -168,11 +168,11 @@
                     </div>
 
                     <div class="grid grid-cols-2 gap-4 mt-6">
-                        <button onclick="printLabels(false)" 
+                        <button id="printNewBtn" onclick="printLabels(false)" 
                                 class="bg-blue-600 hover:bg-blue-700 text-white py-5 rounded-2xl text-xl font-semibold flex items-center justify-center gap-3">
                             <i class="fas fa-print"></i> IN NHÃN MỚI
                         </button>
-                        <button onclick="printLabels(true)" 
+                        <button id="printReprintBtn" onclick="printLabels(true)" 
                                 class="bg-orange-600 hover:bg-orange-700 text-white py-5 rounded-2xl text-xl font-semibold flex items-center justify-center gap-3">
                             <i class="fas fa-redo"></i> IN LẠI 
                         </button>
@@ -191,7 +191,7 @@
                     <div class="bg-white rounded-2xl shadow overflow-hidden">
                         <div class="px-6 py-4 bg-gray-50 border-b flex justify-between items-center">
                             <h3 class="font-semibold">Danh sách Thành Phẩm</h3>
-                            <label class="cursor-pointer bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-xl flex items-center gap-2 text-sm">
+                            <label id="importExcelLabel" class="cursor-pointer bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-xl flex items-center gap-2 text-sm">
                                 <i class="fas fa-upload"></i> Import Excel
                                 <input type="file" id="excelFile" accept=".xlsx,.xls" class="hidden" onchange="importExcel(this)">
                             </label>
@@ -250,15 +250,15 @@
                                 class="bg-gray-600 hover:bg-gray-700 text-white px-5 py-3 rounded-xl flex items-center gap-2 text-sm">
                             <i class="fas fa-check-square"></i> Chọn tất cả
                         </button>
-                        <button onclick="reprintFromHistory()" 
+                        <button id="reprintFromHistoryBtn" onclick="reprintFromHistory()" 
                                 class="bg-orange-600 hover:bg-orange-700 text-white px-6 py-3 rounded-xl flex items-center gap-2">
                             <i class="fas fa-redo"></i> In lại tem đã chọn
                         </button>
-                        <button onclick="deleteSelectedHistory()" 
+                        <button id="deleteSelectedHistoryBtn" onclick="deleteSelectedHistory()" 
                                 class="bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-xl flex items-center gap-2">
                             <i class="fas fa-trash"></i> Xóa đã chọn
                         </button>
-                        <button onclick="exportReportExcel()" 
+                        <button id="exportReportExcelBtn" onclick="exportReportExcel()" 
                                 class="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-xl flex items-center gap-2">
                             <i class="fas fa-file-excel"></i> Tạo Excel Báo Cáo
                         </button>
@@ -404,6 +404,66 @@
         let selectedIndex = -1;
         let printHistory = [];
         let selectedHistoryIds = new Set();
+
+        function can(permissionKey) {
+            return window.hasPermission ? window.hasPermission(permissionKey) : true;
+        }
+
+        function guardPermission(permissionKey, message) {
+            if (can(permissionKey)) return true;
+            alert(message || 'Bạn không có quyền thực hiện thao tác này.');
+            return false;
+        }
+
+        function applyIndexPermissions() {
+            const editAllowed = can('index.edit');
+            const importAllowed = can('index.import');
+            const printAllowed = can('index.print');
+            const reprintAllowed = can('index.reprint');
+            const exportAllowed = can('index.exportReport');
+            const deleteAllowed = can('index.deleteHistory');
+            const resetAllowed = can('index.resetStt');
+
+            const inputIds = ['maBTP', 'quyCach', 'vungNguyenLieu', 'sku', 'tenTP', 'sttDau', 'soLuongTem', 'ngaySX'];
+            inputIds.forEach((id) => {
+                const el = document.getElementById(id);
+                if (!el) return;
+                el.disabled = !editAllowed;
+            });
+
+            const lockButton = (id, allowed) => {
+                const el = document.getElementById(id);
+                if (!el) return;
+                el.disabled = !allowed;
+                el.classList.toggle('opacity-50', !allowed);
+                el.classList.toggle('cursor-not-allowed', !allowed);
+            };
+
+            lockButton('openLotBtn', editAllowed);
+            lockButton('loadFromGridBtn', editAllowed);
+            lockButton('resetSttBtn', resetAllowed);
+            lockButton('printNewBtn', printAllowed);
+            lockButton('printReprintBtn', reprintAllowed);
+            lockButton('reprintFromHistoryBtn', reprintAllowed);
+            lockButton('deleteSelectedHistoryBtn', deleteAllowed);
+            lockButton('exportReportExcelBtn', exportAllowed);
+
+            const importLabel = document.getElementById('importExcelLabel');
+            const excelFile = document.getElementById('excelFile');
+            if (importLabel) {
+                importLabel.classList.toggle('opacity-50', !importAllowed);
+                importLabel.classList.toggle('pointer-events-none', !importAllowed);
+            }
+            if (excelFile && !importAllowed) {
+                excelFile.disabled = true;
+            }
+
+            const gridBody = document.getElementById('gridBody');
+            if (gridBody && !editAllowed) {
+                gridBody.style.pointerEvents = 'none';
+                gridBody.style.opacity = '0.7';
+            }
+        }
 
         // ==================== LOAD/RESET SỐ THỨ TỰ IN THEO TỪNG MÃ TP ====================
         function getProductKey() {
@@ -563,6 +623,7 @@
 
         // ==================== IN LẠI TỪ LỊCH SỬ ====================
         function reprintFromHistory() {
+            if (!guardPermission('index.reprint', 'Bạn không có quyền in lại từ lịch sử.')) return;
             if (selectedHistoryIds.size === 0) {
                 alert("Vui lòng tích chọn ít nhất một bản ghi để in lại!");
                 return;
@@ -597,6 +658,7 @@
 
         // ==================== XÓA BẢN GHI ĐÃ CHỌN ====================
         async function deleteSelectedHistory() {
+            if (!guardPermission('index.deleteHistory', 'Bạn không có quyền xóa lịch sử in.')) return;
             if (!db) return;
             if (selectedHistoryIds.size === 0) {
                 alert("Vui lòng tích chọn ít nhất một bản ghi để xóa!");
@@ -619,6 +681,7 @@
 
         // ==================== XUẤT BÁO CÁO RA EXCEL ====================
         function exportReportExcel() {
+            if (!guardPermission('index.exportReport', 'Bạn không có quyền xuất báo cáo Excel.')) return;
             if (printHistory.length === 0) return alert("Chưa có dữ liệu!");
             const data = printHistory.map(item => ({
                 "Thời gian": new Date(item.timestamp?.toDate() || item.timestamp).toLocaleString('vi-VN'),
@@ -655,6 +718,12 @@
 
         // ==================== IN NHÃN THỰC TẾ ====================
         function printLabels(isReprint = false) {
+            if (isReprint) {
+                if (!guardPermission('index.reprint', 'Bạn không có quyền in lại.')) return;
+            } else {
+                if (!guardPermission('index.print', 'Bạn không có quyền in nhãn mới.')) return;
+            }
+
             const sttDau = parseInt(document.getElementById('sttDau').value) || 1;
             const sttCuoi = parseInt(document.getElementById('sttCuoi').value) || 1;
             const count = Math.max(1, sttCuoi - sttDau + 1);
@@ -692,6 +761,10 @@
         
         // ==================== IMPORT DỮ LIỆU TỪ EXCEL ====================
         async function importExcel(input) {
+            if (!guardPermission('index.import', 'Bạn không có quyền import Excel.')) {
+                input.value = '';
+                return;
+            }
             if (!db) {
                 alert('Firebase chưa sẵn sàng. Vui lòng tải lại trang rồi thử lại.');
                 input.value = '';
@@ -781,6 +854,7 @@
 
         // ==================== CHỌN DÒNG SẢN PHẨM ====================
         function selectRow(index, row) {
+            if (!guardPermission('index.edit', 'Bạn không có quyền chỉnh sửa dữ liệu sản phẩm.')) return;
             document.querySelectorAll('#dataGrid tr').forEach(r => r.classList.remove('selected'));
             row.classList.add('selected');
             selectedIndex = index;
@@ -793,6 +867,7 @@
 
         // ==================== LOAD DỮ LIỆU TỪ BẢNG ====================
         function loadFromGrid() {
+            if (!guardPermission('index.edit', 'Bạn không có quyền chỉnh sửa dữ liệu sản phẩm.')) return;
             if (selectedIndex < 0) return alert("Vui lòng click vào một dòng!");
             alert("Đã load dữ liệu!");
         }
@@ -875,6 +950,7 @@
 
         // ==================== RESET STT ====================
         function resetSTT() {
+            if (!guardPermission('index.resetStt', 'Bạn không có quyền reset STT.')) return;
             const password = prompt("Nhập mật khẩu để Reset STT:");
             if (password === (runtimeConfig.resetPassword || '')) {
                 if (confirm("Reset STT về 1?")) {
@@ -912,6 +988,7 @@
             document.getElementById('ngayDG').value = today;
 
             await initFirebase();
+            applyIndexPermissions();
             loadProductSTT(true);
             loadPrintHistory();
             setTimeout(() => {

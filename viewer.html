@@ -7,10 +7,21 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body class="page-viewer">
+  <script src="firebase-config.js"></script>
+  <script src="auth.js"></script>
+  <script>
+    if (!requirePageAccess('viewer.html')) {
+      document.write('');
+    }
+  </script>
+
   <div class="container">
     <header><h1>Thong Tin Lo Hang</h1></header>
 
     <div class="content">
+      <div style="margin-bottom: 16px;">
+        <button type="button" class="back-link-btn" onclick="goToManagementPage()">Tro ve trang quan ly</button>
+      </div>
       <div id="loading" style="text-align:center; padding:40px;">Dang tai thong tin...</div>
 
       <div id="result" style="display:none;">
@@ -57,13 +68,14 @@
 
   <script>
     const firebaseConfig = {
-      apiKey: "AIzaSyCtmyLlGJuCn35kYR6819XbaP6665KKgd8",
-      authDomain: "quanlysaurieng.firebaseapp.com",
-      databaseURL: "https://quanlysaurieng-default-rtdb.asia-southeast1.firebasedatabase.app",
-      projectId: "quanlysaurieng",
-      storageBucket: "quanlysaurieng.firebasestorage.app",
-      messagingSenderId: "5286982913",
-      appId: "1:5286982913:web:0dc61051f41fab874cd700"
+      apiKey: "AIzaSyAiuq6ZQGVTnPfaWy6rEa8AAV1lse-ZuaU",
+      authDomain: "quanlyindulieu.firebaseapp.com",
+      databaseURL: "https://quanlyindulieu-default-rtdb.firebaseio.com",
+      projectId: "quanlyindulieu",
+      storageBucket: "quanlyindulieu.firebasestorage.app",
+      messagingSenderId: "612738369968",
+      appId: "1:612738369968:web:c6c08c19253a78e522ae75",
+      measurementId: "G-JDM9XPHPEQ"
     };
 
     firebase.initializeApp(firebaseConfig);

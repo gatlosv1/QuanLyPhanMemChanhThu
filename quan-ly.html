@@ -158,8 +158,7 @@
             <div>
               <label for="newRole" class="block text-sm font-semibold text-slate-700 mb-1">Vai trò</label>
               <select id="newRole" class="w-full px-4 py-2 border border-slate-200 rounded-xl focus:outline-none focus:border-brand-500">
-                <option value="viewer">Viewer</option>
-                <option value="qr">QR Manager</option>
+                <option value="staff">Nhân viên</option>
                 <option value="admin">Admin</option>
               </select>
             </div>
@@ -172,9 +171,16 @@
                 <option value="quan-ly.html">Quản Lý</option>
               </select>
             </div>
+            <div class="sm:col-span-2">
+              <label class="block text-sm font-semibold text-slate-700 mb-2">Phần được phép chỉnh sửa</label>
+              <div id="permissionEditor" class="grid grid-cols-1 gap-2 sm:grid-cols-2 rounded-xl border border-slate-200 bg-white p-3 text-sm"></div>
+            </div>
             <div class="sm:col-span-2 flex gap-2">
               <button type="submit" class="flex-1 py-2 px-4 bg-brand-500 hover:bg-brand-600 text-white font-semibold rounded-xl transition">
                 <i data-lucide="save" class="h-4 w-4 inline mr-2"></i>Tạo Tài Khoản
+              </button>
+              <button id="cleanupAccountsBtn" type="button" class="py-2 px-4 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-xl transition">
+                Xóa tài khoản khác (giữ Admin)
               </button>
             </div>
           </form>
@@ -238,11 +244,74 @@
         const currentUserName = document.getElementById('currentUserName');
         const currentUserRole = document.getElementById('currentUserRole');
         const currentUserPage = document.getElementById('currentUserPage');
+        const newPageSelect = document.getElementById('newPage');
+        const newRoleSelect = document.getElementById('newRole');
+        const permissionEditor = document.getElementById('permissionEditor');
+        const cleanupAccountsBtn = document.getElementById('cleanupAccountsBtn');
+        const permissionLabels = {
+          'index.view': 'Xem trang In Tem',
+          'index.edit': 'Sửa thông tin nhãn',
+          'index.import': 'Import Excel sản phẩm',
+          'index.print': 'In nhãn mới',
+          'index.reprint': 'In lại từ lịch sử',
+          'index.exportReport': 'Xuất Excel báo cáo',
+          'index.deleteHistory': 'Xóa lịch sử in',
+          'index.resetStt': 'Reset STT',
+          'qr.create': 'Tạo mã QR mới',
+          'qr.scan': 'Quét QR',
+          'qr.history.view': 'Xem lịch sử QR',
+          'qr.history.import': 'Nhập lịch sử QR',
+          'qr.history.export': 'Xuất lịch sử QR',
+          'qr.history.delete': 'Xóa lịch sử QR',
+          'viewer.view': 'Xem thông tin lô',
+          'viewer.scan': 'Quét QR trên Viewer',
+          'manager.view': 'Xem trang quản lý',
+          'manager.createAccount': 'Tạo tài khoản',
+          'manager.manageAccounts': 'Quản trị tài khoản'
+        };
         const navigationLinks = [
           { element: document.getElementById('navIndex'), page: 'index.html' },
           { element: document.getElementById('navQr'), page: 'TaoQR.html' },
           { element: document.getElementById('navViewer'), page: 'viewer.html' }
         ];
+
+        function renderPermissionEditor() {
+          if (!permissionEditor || !newPageSelect || !newRoleSelect) return;
+
+          const selectedPage = newPageSelect.value;
+          const selectedRole = newRoleSelect.value;
+          const templates = window.pagePermissionTemplates || {};
+          const pagePermissions = templates[selectedPage] || {};
+          const keys = Object.keys(pagePermissions);
+
+          if (selectedRole === 'admin') {
+            permissionEditor.innerHTML = '<div class="sm:col-span-2 rounded-lg bg-amber-50 border border-amber-200 p-3 text-amber-800">Tài khoản admin có toàn quyền trên mọi trang.</div>';
+            return;
+          }
+
+          if (!keys.length) {
+            permissionEditor.innerHTML = '<div class="sm:col-span-2 text-slate-500">Không có quyền mẫu cho trang này.</div>';
+            return;
+          }
+
+          permissionEditor.innerHTML = keys.map((key) => {
+            const checked = pagePermissions[key] ? 'checked' : '';
+            const label = permissionLabels[key] || key;
+            return `<label class="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 cursor-pointer"><input class="permission-checkbox" type="checkbox" data-permission="${key}" ${checked}> <span>${label}</span></label>`;
+          }).join('');
+        }
+
+        function collectPermissionsFromEditor() {
+          if (!permissionEditor || !newRoleSelect) return {};
+          if (newRoleSelect.value === 'admin') return { '*': true };
+
+          const permissions = {};
+          permissionEditor.querySelectorAll('.permission-checkbox').forEach((checkbox) => {
+            const key = checkbox.getAttribute('data-permission');
+            permissions[key] = checkbox.checked;
+          });
+          return permissions;
+        }
 
         function updateNavigationForUser(user) {
           const isAdmin = user && user.role === 'admin';
@@ -269,7 +338,7 @@
         }
 
         if (currentUserName) currentUserName.textContent = currentUser?.username || 'Không xác định';
-        if (currentUserRole) currentUserRole.textContent = currentUser?.role ? (currentUser.role === 'admin' ? 'Quản Trị Viên' : currentUser.role === 'qr' ? 'Quản Lý QR' : 'Người Xem') : '-';
+        if (currentUserRole) currentUserRole.textContent = currentUser?.role ? (currentUser.role === 'admin' ? 'Quản Trị Viên' : 'Nhân Viên') : '-';
         if (currentUserPage) currentUserPage.textContent = currentUser?.page ? (currentUser.page === 'index.html' ? 'In Tem' : currentUser.page === 'viewer.html' ? 'Viewer' : 'Quản Lý QR') : '-';
 
         updateNavigationForUser(currentUser);
@@ -285,6 +354,24 @@
         if (showRegisterBtn) {
           showRegisterBtn.addEventListener('click', () => {
             registerForm.classList.toggle('hidden');
+            if (!registerForm.classList.contains('hidden')) {
+              renderPermissionEditor();
+            }
+          });
+        }
+
+        if (newPageSelect) {
+          newPageSelect.addEventListener('change', renderPermissionEditor);
+        }
+
+        if (newRoleSelect) {
+          newRoleSelect.addEventListener('change', () => {
+            const isAdminRole = newRoleSelect.value === 'admin';
+            if (newPageSelect) {
+              newPageSelect.value = isAdminRole ? 'quan-ly.html' : 'index.html';
+              newPageSelect.disabled = isAdminRole;
+            }
+            renderPermissionEditor();
           });
         }
 
@@ -295,6 +382,7 @@
             const password = document.getElementById('newPassword').value;
             const role = document.getElementById('newRole').value;
             const page = document.getElementById('newPage').value;
+            const permissions = collectPermissionsFromEditor();
 
             if (!username || !password) {
               registerMessage.classList.remove('hidden');
@@ -324,6 +412,7 @@
                 password,
                 role,
                 page,
+                permissions,
                 label: page,
                 createdAt: new Date().toISOString(),
                 createdBy: currentUser.username
@@ -343,6 +432,50 @@
             }
           });
         }
+
+        if (cleanupAccountsBtn) {
+          cleanupAccountsBtn.addEventListener('click', async () => {
+            if (!confirm('Xóa toàn bộ tài khoản không phải admin trong Firebase?')) return;
+
+            try {
+              const runtimeConfig = await window.getRuntimeConfig();
+              const firebaseConfig = runtimeConfig || {};
+              const appName = 'manager-accounts';
+              if (!firebase.apps.find(app => app.name === appName)) {
+                firebase.initializeApp(firebaseConfig, appName);
+              }
+              const db = firebase.app(appName).firestore();
+              const snapshot = await db.collection('accounts').get();
+              const batch = db.batch();
+              let deleteCount = 0;
+
+              snapshot.forEach((doc) => {
+                const data = doc.data() || {};
+                const username = (data.username || '').trim();
+                const role = data.role || '';
+                if (username.toLowerCase() === 'khusx' || role === 'admin') {
+                  return;
+                }
+                batch.delete(doc.ref);
+                deleteCount += 1;
+              });
+
+              if (deleteCount > 0) {
+                await batch.commit();
+              }
+              await window.refreshAuthAccounts();
+              registerMessage.classList.remove('hidden');
+              registerMessage.className = 'mb-4 rounded-2xl bg-emerald-50 p-4 text-sm text-emerald-700';
+              registerMessage.textContent = `✅ Đã xóa ${deleteCount} tài khoản không phải admin.`;
+            } catch (error) {
+              registerMessage.classList.remove('hidden');
+              registerMessage.className = 'mb-4 rounded-2xl bg-red-50 p-4 text-sm text-red-700';
+              registerMessage.textContent = '❌ Lỗi khi dọn tài khoản: ' + error.message;
+            }
+          });
+        }
+
+        renderPermissionEditor();
       })();
     </script>
   </body>
