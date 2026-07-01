@@ -66,13 +66,15 @@
       </div>
     </div>
   </header>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
-
   <main class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
     <!-- QR Scanner -->
     <div class="rounded-3xl border border-slate-200 bg-white p-5 shadow-soft sm:p-6 mb-6">
       <h2 class="text-xl font-semibold mb-4">Quét Mã QR</h2>
       <div id="reader" class="mx-auto w-full sm:w-96 bg-slate-100 rounded-2xl overflow-hidden"></div>
+      <p id="scannerStatus" class="mt-3 text-sm text-slate-500"></p>
+      <button id="retryScannerBtn" onclick="retryScanner()" class="mt-3 hidden rounded-xl bg-brand-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-600">
+        Thử lại camera
+      </button>
     </div>
 
     <!-- Thông Tin Lô -->
@@ -136,32 +138,119 @@
     lucide.createIcons();
 
     let scanner = null;
+    let scannerRunning = false;
     let lastScannedData = null;
 
-    function initScanner() {
-      if (scanner) return;
-      
-      try {
-        scanner = new Html5QrcodeScanner('reader', {
-          fps: 10,
-          qrbox: { width: 250, height: 250 },
-          rememberLastUsedCamera: true,
-          supportedFormats: ['QR_CODE', 'CODE_128']
-        });
+    function setScannerStatus(message, isError = false, showRetry = false) {
+      const statusEl = document.getElementById('scannerStatus');
+      const retryBtn = document.getElementById('retryScannerBtn');
 
-        scanner.render(onScanSuccess, onScanError);
+      statusEl.textContent = message || '';
+      statusEl.className = 'mt-3 text-sm ' + (isError ? 'text-red-600' : 'text-slate-500');
+      retryBtn.classList.toggle('hidden', !showRetry);
+    }
+
+    async function initScanner() {
+      if (scannerRunning) return;
+
+      if (!window.isSecureContext) {
+        setScannerStatus('Trình duyệt đang chặn camera vì trang chưa ở HTTPS/localhost. Hãy mở qua localhost hoặc HTTPS.', true, false);
+        return;
+      }
+
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        setScannerStatus('Trình duyệt không hỗ trợ truy cập camera.', true, false);
+        return;
+      }
+
+      setScannerStatus('Đang khởi tạo camera...');
+
+      try {
+        if (!scanner) {
+          scanner = new Html5Qrcode('reader');
+        }
+
+        const cameras = await Html5Qrcode.getCameras();
+        if (!cameras || cameras.length === 0) {
+          setScannerStatus('Không tìm thấy camera trên thiết bị này.', true, true);
+          return;
+        }
+
+        const rearCamera = cameras.find((camera) => /back|rear|environment/gi.test(camera.label));
+        const selectedCamera = rearCamera || cameras[0];
+
+        await scanner.start(
+          { deviceId: { exact: selectedCamera.id } },
+          {
+            fps: 10,
+            qrbox: { width: 250, height: 250 },
+            formatsToSupport: [
+              Html5QrcodeSupportedFormats.QR_CODE,
+              Html5QrcodeSupportedFormats.CODE_128,
+            ],
+          },
+          onScanSuccess,
+          onScanError,
+        );
+
+        scannerRunning = true;
+        setScannerStatus('Camera đã sẵn sàng. Đưa mã QR vào giữa khung quét.');
       } catch (err) {
         console.error('Scanner init error:', err);
-        document.getElementById('reader').innerHTML = '<div class="p-8 text-center text-red-600"><p>Lỗi: Không thể khởi tạo QR scanner</p><p class="text-sm mt-2">' + err.message + '</p></div>';
+        const detail = err && err.message ? err.message : 'Không rõ nguyên nhân';
+        setScannerStatus('Không thể mở camera: ' + detail + '. Hãy kiểm tra quyền camera trong trình duyệt.', true, true);
+      }
+    }
+
+    async function retryScanner() {
+      try {
+        if (scanner && scannerRunning) {
+          await scanner.stop();
+        }
+      } catch (err) {
+        console.warn('Stop scanner before retry failed:', err);
+      } finally {
+        scannerRunning = false;
+        scanner = null;
+        document.getElementById('reader').innerHTML = '';
+        initScanner();
+      }
+    }
+
+    function safeScannerPause() {
+      if (!scanner || !scannerRunning) return;
+      try {
+        scanner.pause(true);
+      } catch (err) {
+        console.warn('Scanner pause error:', err);
+      }
+    }
+
+    function safeScannerResume() {
+      if (!scanner || !scannerRunning) return;
+      try {
+        scanner.resume();
+      } catch (err) {
+        console.warn('Scanner resume error:', err);
+      }
+    }
+
+    async function stopScannerOnExit() {
+      if (!scanner || !scannerRunning) return;
+      try {
+        await scanner.stop();
+      } catch (err) {
+        console.warn('Scanner stop error:', err);
+      } finally {
+        scannerRunning = false;
       }
     }
 
     function onScanSuccess(decodedText, decodedResult) {
       try {
-        // Try to parse as JSON (for our generated QR codes)
         const data = JSON.parse(decodedText);
         lastScannedData = data;
-        
+
         document.getElementById('ttxeDisplay').textContent = data.ttxe || '--';
         document.getElementById('biensoDisplay').textContent = data.bienso || '--';
         document.getElementById('noiDisplay').textContent = data.noi || '--';
@@ -170,36 +259,40 @@
         document.getElementById('kho2Display').textContent = data.kho2 || '--';
         document.getElementById('kho3Display').textContent = data.kho3 || '--';
         document.getElementById('kho4Display').textContent = data.kho4 || '--';
-        
+
         document.getElementById('infoBox').classList.remove('hidden');
-        if (scanner) scanner.pause();
+        safeScannerPause();
       } catch (e) {
-        // If not JSON, display raw text
         console.warn('QR data is not JSON, displaying raw:', decodedText);
         lastScannedData = { rawData: decodedText };
         document.getElementById('ttxeDisplay').textContent = decodedText.substring(0, 20);
         document.getElementById('biensoDisplay').textContent = decodedText;
+        document.getElementById('noiDisplay').textContent = '--';
+        document.getElementById('nccDisplay').textContent = '--';
+        document.getElementById('kho1Display').textContent = '--';
+        document.getElementById('kho2Display').textContent = '--';
+        document.getElementById('kho3Display').textContent = '--';
+        document.getElementById('kho4Display').textContent = '--';
         document.getElementById('infoBox').classList.remove('hidden');
-        if (scanner) scanner.pause();
+        safeScannerPause();
       }
     }
 
     function onScanError(error) {
-      // Ignore QR code not found errors
-      if (error && error.includes && !error.includes('QR code not found')) {
+      if (error && error.includes && !error.includes('NotFoundException')) {
         console.warn('QR Scan error:', error);
       }
     }
 
     function resetScanner() {
       document.getElementById('infoBox').classList.add('hidden');
-      if (scanner) scanner.resume();
+      safeScannerResume();
       lastScannedData = null;
     }
 
     function printQRInfo() {
       if (!lastScannedData) return;
-      
+
       const printWindow = window.open('', '_blank');
       printWindow.document.write(`
         <html>
@@ -250,7 +343,7 @@
               <span class="value">${lastScannedData.kho4 || '--'}</span>
             </div>
           </div>
-          <script>window.print();</script>
+          <script>window.print();<\/script>
         </body>
         </html>
       `);
@@ -261,9 +354,12 @@
       window.location.href = 'quan-ly.html';
     }
 
-    // Khởi tạo scanner khi trang tải
     window.addEventListener('load', () => {
       initScanner();
+    });
+
+    window.addEventListener('beforeunload', () => {
+      stopScannerOnExit();
     });
   </script>
 </body>
