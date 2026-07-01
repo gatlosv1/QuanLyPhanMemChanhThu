@@ -81,12 +81,15 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
 
   <script>
-    const FALLBACK_FIREBASE_CONFIG = {
-      apiKey: 'AIzaSyCtmyLlGJuCn35kYR6819XbaP6665KKgd8',
-      authDomain: 'quanlysaurieng.firebaseapp.com',
-      databaseURL: 'https://quanlysaurieng-default-rtdb.asia-southeast1.firebasedatabase.app',
-      projectId: 'quanlysaurieng'
-    };
+    function hasRequiredFirebaseConfig(config) {
+      return Boolean(
+        config &&
+        config.apiKey &&
+        config.authDomain &&
+        config.databaseURL &&
+        config.projectId
+      );
+    }
 
     (async () => {
       let html5QrCode = null;
@@ -104,14 +107,23 @@
         });
       }
 
-      let firebaseConfig = FALLBACK_FIREBASE_CONFIG;
+      let firebaseConfig = {};
       try {
         const runtimeConfig = await window.getRuntimeConfig?.() || {};
-        if (runtimeConfig && Object.keys(runtimeConfig).length) {
+        if (hasRequiredFirebaseConfig(runtimeConfig)) {
           firebaseConfig = runtimeConfig;
         }
       } catch (error) {
-        console.warn('Không lấy được runtime config, dùng cấu hình dự phòng.', error);
+        console.warn('Không lấy được runtime config cho viewer.', error);
+      }
+
+      if (!hasRequiredFirebaseConfig(firebaseConfig)) {
+        const loading = document.getElementById('loading');
+        const error = document.getElementById('error');
+        loading.style.display = 'none';
+        error.textContent = 'Thiếu cấu hình Firebase. Hãy chạy backend và kiểm tra biến môi trường FIREBASE_*.';
+        error.style.display = 'block';
+        return;
       }
 
       if (!firebase.apps.some(app => app.name === '[DEFAULT]')) {
