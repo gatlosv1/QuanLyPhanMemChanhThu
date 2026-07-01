@@ -3,241 +3,492 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Tạo QR - Quản Lý Kho</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://unpkg.com/lucide@latest"></script>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <title>Tao QR - QuanLyTraiCay</title>
+  <link rel="stylesheet" href="style.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
-  <script>
-    tailwind.config = {
-      theme: {
-        extend: {
-          colors: {
-            brand: {
-              50: "#fff7ed",
-              100: "#ffedd5",
-              500: "#f97316",
-              600: "#ea580c",
-            },
-          },
-          boxShadow: {
-            soft: "0 10px 30px rgba(2, 6, 23, 0.06)",
-          },
-        },
-      },
-    };
-  </script>
 </head>
-<body class="min-h-screen bg-slate-50 text-slate-800">
-  <script src="firebase-config.js"></script>
-  <script src="auth.js"></script>
-  <script>
-    if (!requirePageAccess('TaoQR.html')) {
-      document.write('');
-    }
-  </script>
-
-  <!-- Header -->
-  <header class="sticky top-0 z-40 border-b border-slate-200/80 bg-white/90 backdrop-blur">
-    <div class="mx-auto flex w-full max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
-      <div class="flex items-center gap-3">
-        <div class="grid h-11 w-11 place-items-center rounded-2xl bg-brand-500 text-white shadow-soft">
-          <i data-lucide="qr-code" class="h-5 w-5"></i>
-        </div>
-        <div>
-          <p class="text-xs font-medium uppercase tracking-[0.18em] text-slate-500">Hệ Thống</p>
-          <h1 class="text-lg font-semibold sm:text-xl">Tạo QR</h1>
-        </div>
-      </div>
-
-      <div class="flex items-center gap-2 sm:gap-3">
-        <button onclick="goToManagementPage()" class="rounded-xl border border-slate-200 bg-white p-2.5 text-slate-500 transition hover:border-brand-500/40 hover:text-brand-500" title="Trở về">
-          <i data-lucide="arrow-left" class="h-5 w-5"></i>
-        </button>
-        <button class="rounded-xl border border-slate-200 bg-white p-2.5 text-slate-500 transition hover:border-brand-500/40 hover:text-brand-500">
-          <i data-lucide="bell" class="h-5 w-5"></i>
-        </button>
-        <button onclick="logoutUser()" class="rounded-xl border border-slate-200 bg-white p-2.5 text-slate-500 transition hover:border-brand-500/40 hover:text-brand-500" title="Đăng xuất">
-          <i data-lucide="log-out" class="h-5 w-5"></i>
-        </button>
-        <div class="h-10 w-10 rounded-2xl bg-gradient-to-br from-brand-500 to-orange-400 shadow-soft"></div>
-      </div>
-    </div>
+<body class="page-qr">
+  <header>
+    <strong>Nhap Tao QRcode</strong>
+    <div id="realtimeClock" class="clock"></div>
   </header>
 
-  <main class="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-    <div class="rounded-3xl border border-slate-200 bg-white p-5 shadow-soft sm:p-6">
-      <header class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-5 mb-6">
-        <div>
-          <h2 class="text-xl font-semibold sm:text-2xl">Tạo QR Mã</h2>
-          <p class="mt-1 text-sm text-slate-500">Quản lý và tạo mã QR cho các lô hàng</p>
-        </div>
-        <div id="realtimeClock" class="text-sm font-semibold text-brand-600"></div>
-      </header>
-
-      <!-- Tabs -->
-      <div class="flex gap-2 mb-6 border-b border-slate-200">
-        <button onclick="switchQRTab(0)" id="qrtab0" class="px-4 py-3 font-semibold text-brand-600 border-b-2 border-brand-600">
-          <i class="fas fa-plus-circle mr-2"></i>Tạo QR Mới
-        </button>
-        <button onclick="switchQRTab(1)" id="qrtab1" class="px-4 py-3 font-semibold text-slate-600 border-b-2 border-transparent hover:text-slate-900">
-          <i class="fas fa-history mr-2"></i>Lịch Sử
-        </button>
+  <div class="wrapper">
+    <div class="left">
+      <div class="tabs">
+        <div class="tab active" id="tab-create">Tao QR</div>
+        <div class="tab" id="tab-history">Lich su</div>
       </div>
 
-      <!-- Tab: Tạo QR Mới -->
-      <div id="qrcontent0" class="space-y-4">
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label class="block text-sm font-semibold text-slate-700 mb-1">TTxe</label>
-            <select id="ttxe" class="w-full px-4 py-2 border border-slate-200 rounded-xl focus:outline-none focus:border-brand-500">
-              <option value="">-- Chọn --</option>
-              <option value="01">01</option><option value="02">02</option><option value="03">03</option>
-            </select>
-          </div>
-          <div>
-            <label class="block text-sm font-semibold text-slate-700 mb-1">Biển Số Xe</label>
-            <input id="bienso" type="text" placeholder="51H-123.45" class="w-full px-4 py-2 border border-slate-200 rounded-xl focus:outline-none focus:border-brand-500">
-          </div>
+      <div id="create-tab">
+        <h3>Tao QR Moi</h3>
+
+        <div class="form-row">
+          <label for="ttxe">TTxe</label>
+          <select id="ttxe">
+            <option value="">-- Chon --</option>
+            <option value="01">01</option><option value="02">02</option><option value="03">03</option>
+            <option value="04">04</option><option value="05">05</option><option value="06">06</option>
+            <option value="07">07</option><option value="08">08</option><option value="09">09</option>
+            <option value="10">10</option><option value="11">11</option><option value="12">12</option>
+            <option value="13">13</option><option value="14">14</option><option value="15">15</option>
+            <option value="16">16</option><option value="17">17</option><option value="18">18</option>
+            <option value="19">19</option><option value="20">20</option>
+          </select>
         </div>
 
-        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <div>
-            <label class="block text-xs font-semibold text-slate-700 mb-1">Kho 1</label>
-            <input id="kho1" type="text" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm">
-          </div>
-          <div>
-            <label class="block text-xs font-semibold text-slate-700 mb-1">Kho 2</label>
-            <input id="kho2" type="text" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm">
-          </div>
-          <div>
-            <label class="block text-xs font-semibold text-slate-700 mb-1">Kho 3</label>
-            <input id="kho3" type="text" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm">
-          </div>
-          <div>
-            <label class="block text-xs font-semibold text-slate-700 mb-1">Kho 4</label>
-            <input id="kho4" type="text" class="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm">
-          </div>
+        <div class="form-row">
+          <label for="bienso">Bien so xe</label>
+          <input id="bienso" type="text" placeholder="Vi du: 51H-123.45" style="flex:1">
         </div>
 
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label class="block text-sm font-semibold text-slate-700 mb-1">NCC</label>
-            <select id="ncc" class="w-full px-4 py-2 border border-slate-200 rounded-xl focus:outline-none focus:border-brand-500">
-              <option value="009">009 - CTBT</option>
-              <option value="010">010 - Nhà cung cấp B</option>
-            </select>
-          </div>
-          <div>
-            <label class="block text-sm font-semibold text-slate-700 mb-1">Nơi XS</label>
-            <select id="noi" class="w-full px-4 py-2 border border-slate-200 rounded-xl focus:outline-none focus:border-brand-500">
-              <option value="MT">MT - Miền Tây</option>
-              <option value="BP">BP - Bình Phước</option>
-              <option value="DN">DN - Đồng Nai</option>
-            </select>
-          </div>
+        <div class="form-row">
+          <label for="kho1">Kho 1</label>
+          <input id="kho1" type="text" placeholder="Kho 1" style="flex:1">
+          <label for="kho2" style="width:70px; text-align:right;">Kho 2</label>
+          <input id="kho2" type="text" placeholder="Kho 2" style="flex:1">
+        </div>
+        <div class="form-row">
+          <label for="kho3">Kho 3</label>
+          <input id="kho3" type="text" placeholder="Kho 3" style="flex:1">
+          <label for="kho4" style="width:70px; text-align:right;">Kho 4</label>
+          <input id="kho4" type="text" placeholder="Kho 4" style="flex:1">
         </div>
 
-        <button onclick="createQRCode()" class="w-full py-3 bg-brand-500 hover:bg-brand-600 text-white font-semibold rounded-2xl transition">
-          <i class="fas fa-qrcode mr-2"></i>Tạo QR Mã
-        </button>
+        <div class="form-row">
+          <label for="ncc">NCC</label>
+          <select id="ncc">
+            <option value="009">009 - CTBT</option>
+            <option value="010">010 - Nha cung cap B</option>
+          </select>
+          <label for="vitri1" style="width:90px;">Vi Tri U 1</label>
+          <input id="vitri1" type="text" placeholder="Vi tri U1" style="width:140px">
+        </div>
+
+        <div class="form-row">
+          <label for="noi">Noi XS</label>
+          <select id="noi">
+            <option value="MT">MT - Mien Tay</option>
+            <option value="BP">BP - Binh Phuoc</option>
+            <option value="DN">DN - Dong Nai</option>
+            <option value="DL">DL - Dak Lak</option>
+            <option value="KH">KH - Khanh Hoa</option>
+          </select>
+          <label for="vitri2" style="width:90px;">Vi Tri U 2</label>
+          <input id="vitri2" type="text" placeholder="Vi tri U2" style="width:140px">
+        </div>
+
+        <div class="form-row">
+          <label for="hang">Hang</label>
+          <select id="hang">
+            <option value="D">D</option>
+            <option value="R">R</option>
+          </select>
+          <label for="mui" style="width:90px;">Mui</label>
+          <select id="mui" style="width:140px">
+            <option value="0K">0K</option>
+            <option value="0M">0M</option>
+            <option value="TA">TA</option>
+            <option value="TB">TB</option>
+          </select>
+        </div>
+
+        <div class="form-row">
+          <label for="ngay">Ngay Nhap</label>
+          <input id="ngay" type="date" disabled>
+        </div>
+
+        <div class="form-row">
+          <label for="tongkl">Tong KL</label>
+          <input id="tongkl" type="text" placeholder="Nhap tong khoi luong (kg)">
+        </div>
+
+        <div class="buttons">
+          <button id="clearBtn">Xoa</button>
+          <button id="scanBtn" class="scan-btn">Quet QR</button>
+          <button id="genBtn" class="primary">Tao QR</button>
+          <button id="printBtn">In</button>
+        </div>
       </div>
 
-      <!-- Tab: Lịch Sử -->
-      <div id="qrcontent1" class="hidden">
-        <div class="rounded-2xl border border-slate-200 overflow-auto">
-          <table id="qrHistoryTable" class="w-full text-sm">
-            <thead class="bg-slate-50 sticky top-0">
-              <tr class="border-b">
-                <th class="px-4 py-2 text-left">Thời Gian</th>
-                <th class="px-4 py-2 text-left">TTxe</th>
-                <th class="px-4 py-2 text-left">Biển Số</th>
-                <th class="px-4 py-2 text-left">Nơi XS</th>
-              </tr>
-            </thead>
-            <tbody id="qrHistoryBody"></tbody>
-          </table>
+      <div id="history-tab" style="display:none;">
+        <h3>Lich su QR Code <span id="syncStatus" style="font-size:13px;"></span></h3>
+
+        <div class="history-actions">
+          <button id="exportBtn" class="export-btn" style="display:none;">Tai lich su ve (ZIP)</button>
+          <button id="importBtn" class="import-btn" style="display:none;">Nhap lich su tu file</button>
+          <button id="deleteAllBtn" class="delete-all-btn" style="display:none;">Xoa toan bo lich su</button>
         </div>
+
+        <input type="text" id="searchHistory" placeholder="Tim theo ma QR..." style="width:100%; padding:10px; margin-bottom:10px;">
+        <div id="historyList" class="history-list"></div>
       </div>
     </div>
-  </main>
+
+    <div class="right">
+      <div id="print-area">
+        <div id="qrcode">cho tao QR</div>
+        <div id="qtext" class="note"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Quet QR -->
+  <div id="scanModal" class="modal" style="display:none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Quet Ma QR Code</h3>
+        <span id="closeModal" class="close-btn">&times;</span>
+      </div>
+      <div id="reader" style="width:100%; max-width:400px; margin:20px auto;"></div>
+      <div id="scanResult" style="text-align:center; padding:15px; min-height:50px;"></div>
+    </div>
+  </div>
+
+  <input type="file" id="importFile" accept=".json" style="display:none;">
+
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 
   <script>
-    lucide.createIcons();
+    const firebaseConfig = {
+      apiKey: "AIzaSyCtmyLlGJuCn35kYR6819XbaP6665KKgd8",
+      authDomain: "quanlysaurieng.firebaseapp.com",
+      databaseURL: "https://quanlysaurieng-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "quanlysaurieng",
+      storageBucket: "quanlysaurieng.firebasestorage.app",
+      messagingSenderId: "5286982913",
+      appId: "1:5286982913:web:0dc61051f41fab874cd700"
+    };
 
-    let qrdata = [];
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+    const historyRef = db.ref('qrHistory');
 
-    function switchQRTab(index) {
-      document.getElementById('qrcontent0').classList.toggle('hidden', index !== 0);
-      document.getElementById('qrcontent1').classList.toggle('hidden', index !== 1);
-      document.getElementById('qrtab0').classList.toggle('text-brand-600', index === 0);
-      document.getElementById('qrtab0').classList.toggle('border-brand-600', index === 0);
-      document.getElementById('qrtab1').classList.toggle('text-brand-600', index === 1);
-      document.getElementById('qrtab1').classList.toggle('border-brand-600', index === 1);
+    let history = [];
+    let html5QrCode = null;
+    let currentPermission = 0; // 0: none, 1: view only, 2: full
+
+    function pad(n){ return n < 10 ? '0' + n : n; }
+
+    const clockEl = document.getElementById('realtimeClock');
+    function updateClock() {
+      const d = new Date();
+      clockEl.textContent = pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
+    }
+    function setCurrentDate() {
+      document.getElementById('ngay').value = new Date().toISOString().split('T')[0];
+    }
+    updateClock(); setCurrentDate(); setInterval(updateClock, 1000);
+
+    // Tab Lich su
+    document.getElementById('tab-history').onclick = function() {
+      document.getElementById('create-tab').style.display = 'none';
+      document.getElementById('history-tab').style.display = 'block';
+      document.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
+      document.getElementById('tab-history').classList.add('active');
+
+      if (currentPermission === 0) {
+        const pass = prompt('Nhap mat khau de truy cap Lich su:\n(mat khau la nv)', '');
+        if (pass === '20695') {
+          currentPermission = 2;
+          alert('Toan quyen truy cap da duoc kich hoat.');
+        } else if (pass === 'nv' || pass === 'NV') {
+          currentPermission = 1;
+          alert('Che do chi xem & in da duoc kich hoat.');
+        } else {
+          alert('Mat khau sai!');
+          document.getElementById('tab-create').click();
+          return;
+        }
+      }
+      loadHistoryFromFirebase();
+      updateUIByPermission();
+    };
+
+    function updateUIByPermission() {
+      const isFull = currentPermission === 2;
+      document.getElementById('exportBtn').style.display = isFull ? 'inline-block' : 'none';
+      document.getElementById('importBtn').style.display = isFull ? 'inline-block' : 'none';
+      document.getElementById('deleteAllBtn').style.display = isFull ? 'inline-block' : 'none';
     }
 
-    function createQRCode() {
-      const data = {
-        ttxe: document.getElementById('ttxe').value,
-        bienso: document.getElementById('bienso').value,
-        kho1: document.getElementById('kho1').value,
-        kho2: document.getElementById('kho2').value,
-        kho3: document.getElementById('kho3').value,
-        kho4: document.getElementById('kho4').value,
-        ncc: document.getElementById('ncc').value,
-        noi: document.getElementById('noi').value,
-        timestamp: new Date().toLocaleString('vi-VN')
-      };
-      
-      if (!data.ttxe || !data.bienso) {
-        alert('Vui lòng nhập TTxe và Biển số xe!');
+    function loadHistoryFromFirebase() {
+      const status = document.getElementById('syncStatus');
+      status.textContent = 'Dang dong bo...';
+      status.style.color = '#ffc107';
+
+      historyRef.once('value', function(snapshot) {
+        const data = snapshot.val();
+        history = data ? Object.values(data) : [];
+        history.sort(function(a,b) { return (b.id || 0) - (a.id || 0); });
+        renderHistory();
+        status.textContent = 'Da dong bo';
+        status.style.color = '#28a745';
+        setTimeout(function() { status.textContent = ''; }, 2000);
+      });
+    }
+
+    function saveToHistory(data) {
+      const newEntry = Object.assign({}, data, { timestamp: new Date().toLocaleString('vi-VN'), id: Date.now() });
+      historyRef.push(newEntry).then(function() { loadHistoryFromFirebase(); });
+    }
+
+    function renderHistory(filtered) {
+      const list = document.getElementById('historyList');
+      const records = filtered || history;
+      if (records.length === 0) {
+        list.innerHTML = '<p style="text-align:center;padding:40px;color:#888;">Chua co du lieu lich su</p>';
         return;
       }
-
-      // Generate QR data as JSON
-      const qrJsonData = JSON.stringify(data);
-      
-      // Generate QR code (simple implementation - store in local array)
-      qrdata.push({...data, qrData: qrJsonData, id: Date.now()});
-      renderQRHistory();
-      alert('✅ Tạo QR mã thành công!');
-      
-      // Reset form
-      document.getElementById('ttxe').value = '';
-      document.getElementById('bienso').value = '';
-      document.getElementById('kho1').value = '';
-      document.getElementById('kho2').value = '';
-      document.getElementById('kho3').value = '';
-      document.getElementById('kho4').value = '';
+      list.innerHTML = records.map(function(item) {
+        return '\n        <div class="history-item">\n          <div onclick="loadQRFromHistory(' + JSON.stringify(item).replace(/"/g,'&quot;') + ')" style="flex:1; cursor:pointer;">\n            <strong>' + item.ma_lo + '</strong><br>\n            <small>' + (item.timestamp || '') + ' ' + (item.bienso ? '| ' + item.bienso : '') + '</small>\n          </div>\n          <div style="display:flex; gap:6px;">\n            <button class="print-btn" onclick="event.stopImmediatePropagation(); printFromHistory(\'' + item.ma_lo + '\')">In</button>\n            ' + (currentPermission === 2 ? '<button class="delete-btn" onclick="event.stopImmediatePropagation(); deleteSingleHistory(\'' + item.ma_lo + '\')">Xoa</button>' : '') + '\n          </div>\n        </div>\n      ';
+      }).join('');
     }
 
-    function renderQRHistory() {
-      const tbody = document.getElementById('qrHistoryBody');
-      tbody.innerHTML = qrdata.map((item, i) => `
-        <tr class="border-b hover:bg-slate-50">
-          <td class="px-4 py-2 text-xs">${item.timestamp}</td>
-          <td class="px-4 py-2 font-semibold">${item.ttxe}</td>
-          <td class="px-4 py-2 font-mono text-sm">${item.bienso}</td>
-          <td class="px-4 py-2">${item.noi}</td>
-        </tr>
-      `).join('');
-    }
+    window.loadQRFromHistory = function(item) {
+      document.getElementById('qrcode').innerHTML = '';
+      new QRCode(document.getElementById('qrcode'), {text: item.ma_lo, width: 250, height: 250});
+      document.getElementById('qtext').innerHTML = '\n        <div>' + item.ma_lo + '</div>\n        <div>Ngay: ' + item.ngay_display + '</div>\n        ' + (item.tongkl ? '<div>Tong KL: ' + item.tongkl + ' kg</div>' : '') + '\n        ' + (item.bienso ? '<div>Bien so: ' + item.bienso + '</div>' : '') + '\n      ';
+    };
 
-    function goToManagementPage() {
-      window.location.href = 'quan-ly.html';
-    }
+    window.printFromHistory = function(ma_lo) {
+      const item = history.find(function(h) { return h.ma_lo === ma_lo; });
+      if (item) loadQRFromHistory(item);
+      setTimeout(function() { window.print(); }, 300);
+    };
 
-    // Hiển thị đồng hồ thực tế
-    setInterval(() => {
-      const now = new Date().toLocaleTimeString('vi-VN');
-      const el = document.getElementById('realtimeClock');
-      if (el) el.textContent = now;
-    }, 1000);
+    window.deleteSingleHistory = function(ma_lo) {
+      if (currentPermission !== 2) return;
+      if (!confirm('Xoa ma lo: ' + ma_lo + '?')) return;
+      historyRef.orderByChild('ma_lo').equalTo(ma_lo).once('value', function(snapshot) {
+        snapshot.forEach(function(child) { child.ref.remove(); });
+        loadHistoryFromFirebase();
+      });
+    };
 
-    // Initialize on page load
-    window.addEventListener('load', () => {
-      lucide.createIcons();
+    // Tab Tao QR
+    document.getElementById('tab-create').onclick = function() {
+      document.getElementById('create-tab').style.display = 'block';
+      document.getElementById('history-tab').style.display = 'none';
+      document.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
+      document.getElementById('tab-create').classList.add('active');
+    };
+
+    // Tao QR
+    document.getElementById('genBtn').addEventListener('click', function() {
+      const ttxe = document.getElementById('ttxe').value.trim();
+      if (!ttxe) return alert('Vui long chon TTxe!');
+
+      const bienso = document.getElementById('bienso').value.trim();
+      const kho1 = document.getElementById('kho1').value.trim();
+      const kho2 = document.getElementById('kho2').value.trim();
+      const kho3 = document.getElementById('kho3').value.trim();
+      const kho4 = document.getElementById('kho4').value.trim();
+
+      const ncc = document.getElementById('ncc').value;
+      const noi = document.getElementById('noi').value;
+      const hang = document.getElementById('hang').value;
+      const mui = document.getElementById('mui').value;
+      const vitri1 = document.getElementById('vitri1').value.trim();
+      const vitri2 = document.getElementById('vitri2').value.trim();
+      const tongkl = document.getElementById('tongkl').value.trim();
+
+      const dateObj = new Date(document.getElementById('ngay').value);
+      const dd = pad(dateObj.getDate());
+      const mm = pad(dateObj.getMonth() + 1);
+      const yy = String(dateObj.getFullYear());
+      const ylast = yy.charAt(yy.length - 1);
+
+      let posPart = '';
+      if (vitri1 && vitri2) posPart = vitri1 + '/' + vitri2;
+      else if (vitri1) posPart = vitri1;
+
+      const ma_lo = hang + ncc + noi + dd + mm + ylast + '-' + ttxe + '-' + mui + (posPart ? '-' + posPart : '');
+
+      const displayDate = dd + '/' + mm + '/' + yy;
+
+      let khoList = [kho1, kho2, kho3, kho4].filter(function(k) { return k && k.trim() !== ''; });
+      const khoDisplay = khoList.join(' - ');
+
+      document.getElementById('qrcode').innerHTML = '';
+      const viewerUrl = 'viewer.html?q=' + encodeURIComponent(ma_lo);
+      new QRCode(document.getElementById('qrcode'), { text: viewerUrl, width: 250, height: 250 });
+
+      document.getElementById('qtext').innerHTML = '\n        <div>' + ma_lo + '</div>\n        <div>Ngay: ' + displayDate + '</div>\n        ' + (tongkl ? '<div>Tong KL: ' + tongkl + ' kg</div>' : '') + '\n        ' + (bienso ? '<div>Bien so: ' + bienso + '</div>' : '') + '\n        ' + (khoDisplay ? '<div>Kho: ' + khoDisplay + '</div>' : '') + '\n      ';
+
+      saveToHistory({
+        ma_lo: ma_lo,
+        ngay_display: displayDate,
+        ttxe: ttxe,
+        bienso: bienso,
+        kho1: kho1,
+        kho2: kho2,
+        kho3: kho3,
+        kho4: kho4,
+        ncc: ncc,
+        noi: noi,
+        hang: hang,
+        mui: mui,
+        vitri1: vitri1,
+        vitri2: vitri2,
+        tongkl: tongkl
+      });
     });
+
+    // Quet QR
+    document.getElementById('scanBtn').addEventListener('click', function() {
+      document.getElementById('scanModal').style.display = 'flex';
+      document.getElementById('scanResult').innerHTML = '';
+      startScanner();
+    });
+
+    document.getElementById('closeModal').addEventListener('click', function() {
+      stopScanner();
+      document.getElementById('scanModal').style.display = 'none';
+    });
+
+    function startScanner() {
+      if (html5QrCode) stopScanner();
+      html5QrCode = new Html5Qrcode('reader');
+
+      html5QrCode.start(
+        { facingMode: 'environment' },
+        { fps: 10, qrbox: { width: 280, height: 280 } },
+        function(decodedText) {
+          stopScanner();
+          document.getElementById('scanModal').style.display = 'none';
+
+          if (decodedText.includes('viewer.html?q=')) {
+            window.location.href = decodedText;
+          } else if (decodedText.includes('?q=')) {
+            window.location.href = decodedText;
+          } else {
+            window.location.href = 'viewer.html?q=' + encodeURIComponent(decodedText);
+          }
+        },
+        function() {}
+      ).catch(function() {
+        alert('Khong the mo camera.\nVui long cho phep quyen Camera trong trinh duyet.');
+        document.getElementById('scanModal').style.display = 'none';
+      });
+    }
+
+    function stopScanner() {
+      if (html5QrCode) {
+        html5QrCode.stop().catch(function() {});
+        html5QrCode = null;
+      }
+    }
+
+    window.loadQRFromHistoryByCode = function(maLo) {
+      historyRef.orderByChild('ma_lo').equalTo(maLo).once('value', function(snapshot) {
+        let found = false;
+        snapshot.forEach(function(child) {
+          loadQRFromHistory(child.val());
+          found = true;
+        });
+        if (!found) alert('Khong tim thay ma: ' + maLo);
+      });
+    };
+
+    // Import
+    document.getElementById('importBtn').addEventListener('click', function() {
+      if (currentPermission !== 2) return alert('Ban khong co quyen!');
+      document.getElementById('importFile').click();
+    });
+
+    document.getElementById('importFile').addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(event) {
+        try {
+          const imported = JSON.parse(event.target.result);
+          if (Array.isArray(imported)) {
+            if (confirm('Nhap ' + imported.length + ' ban ghi?')) {
+              imported.forEach(function(item) { historyRef.push(item); });
+              setTimeout(loadHistoryFromFirebase, 1000);
+              alert('Nhap du lieu thanh cong!');
+            }
+          }
+        } catch (err) { alert('Loi file: ' + err.message); }
+      };
+      reader.readAsText(file);
+    });
+
+    // Export
+    document.getElementById('exportBtn').addEventListener('click', async function() {
+      if (currentPermission !== 2) return alert('Ban khong co quyen!');
+      if (history.length === 0) return alert('Lich su trong!');
+
+      const dateStr = new Date().toISOString().slice(0,10);
+      const zip = new JSZip();
+
+      zip.file('qr-history-' + dateStr + '.json', JSON.stringify(history, null, 2));
+
+      const excelData = history.map(function(item) {
+        return {
+          'Ma Lo': item.ma_lo,
+          'Ngay Nhap': item.ngay_display,
+          'Thoi gian': item.timestamp,
+          'TTxe': item.ttxe,
+          'Bien So Xe': item.bienso || '',
+          'Kho 1': item.kho1 || '',
+          'Kho 2': item.kho2 || '',
+          'Kho 3': item.kho3 || '',
+          'Kho 4': item.kho4 || '',
+          'NCC': item.ncc,
+          'Noi XS': item.noi,
+          'Hang': item.hang,
+          'Mui': item.mui,
+          'Vi Tri 1': item.vitri1 || '',
+          'Vi Tri 2': item.vitri2 || '',
+          'Tong KL': item.tongkl || ''
+        };
+      });
+
+      const ws = XLSX.utils.json_to_sheet(excelData);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'LichSuQR');
+      const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+      zip.file('qr-history-' + dateStr + '.xlsx', excelBuffer);
+
+      const zipBlob = await zip.generateAsync({ type: 'blob' });
+      const url = URL.createObjectURL(zipBlob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'qr-history-' + dateStr + '.zip';
+      link.click();
+      URL.revokeObjectURL(url);
+
+      alert('Da tai file ZIP thanh cong!');
+    });
+
+    // Xoa toan bo
+    document.getElementById('deleteAllBtn').addEventListener('click', function() {
+      if (currentPermission !== 2) return alert('Ban khong co quyen!');
+      if (history.length === 0) return alert('Lich su da trong!');
+      if (!confirm('Ban co chac chan muon XOA TOAN BO lich su?\nHanh dong nay KHONG THE hoan tac!')) return;
+
+      if (prompt('Nhap mat khau de xac nhan:') !== 'CTYCT2026') {
+        return alert('Mat khau sai!');
+      }
+
+      historyRef.remove().then(function() {
+        history = [];
+        renderHistory();
+        alert('Da xoa toan bo lich su thanh cong!');
+      }).catch(function(err) { alert('Loi xoa: ' + err.message); });
+    });
+
+    document.getElementById('printBtn').addEventListener('click', function() { window.print(); });
+    document.getElementById('clearBtn').addEventListener('click', function() { location.reload(); });
+
+    loadHistoryFromFirebase();
   </script>
 </body>
 </html>
