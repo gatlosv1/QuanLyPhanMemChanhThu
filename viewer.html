@@ -73,8 +73,12 @@
       <div style="text-align:center; padding:0 15px 15px;">
         <button type="button" class="scan-btn" onclick="closeScanModal()">Dong Camera (Esc)</button>
       </div>
+      
     </div>
   </div>
+          <p class="text-center text-sm text-slate-600 mt-6">
+          © 2026 Copyright Chanh Thu Group.
+        </p>
 
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
@@ -344,9 +348,9 @@
         'barcode-check': 'Quet Ma Vach de Check',
         report: 'Quet Nhap Bao Cao San Luong'
       };
-      document.getElementById('scanTitle').textContent = titleMap[mode] || 'Quet Ma';
+      document.getElementById('scanTitle').textContent = titleMap[mode] || 'Quét mã';
       document.getElementById('scanModal').style.display = 'flex';
-      setScanResultMessage('San sang quet...', '#475569');
+      setScanResultMessage('Sẳn sàng quét...', '#475569');
       startScanner(mode);
     }
 
@@ -372,15 +376,6 @@
       if (typeof Html5QrcodeSupportedFormats !== 'undefined') {
         if (mode === 'qr-check') {
           scanConfig.formatsToSupport = [Html5QrcodeSupportedFormats.QR_CODE];
-        } else if (mode === 'barcode-check') {
-          scanConfig.formatsToSupport = [
-            Html5QrcodeSupportedFormats.CODE_128,
-            Html5QrcodeSupportedFormats.CODE_39,
-            Html5QrcodeSupportedFormats.EAN_13,
-            Html5QrcodeSupportedFormats.EAN_8,
-            Html5QrcodeSupportedFormats.UPC_A,
-            Html5QrcodeSupportedFormats.UPC_E
-          ];
         } else {
           scanConfig.formatsToSupport = [
             Html5QrcodeSupportedFormats.QR_CODE,
@@ -400,7 +395,7 @@
         async function(decodedText) {
           const scannedValue = normalizeScannedValue(decodedText);
           if (!scannedValue) {
-            setScanResultMessage('Noi dung quet khong hop le.', '#b91c1c');
+            setScanResultMessage('Quét thành công.', '#b91c1c');
             return;
           }
 
@@ -415,7 +410,7 @@
             const upper = scannedValue.toUpperCase();
             const parsed = parseBarcodeCode(upper);
             if (!parsed) {
-              setScanResultMessage('Ma vach khong dung dinh dang hoac sai check digit.', '#b91c1c');
+              setScanResultMessage('Mã vạch không đúng định dạng check digit.', '#b91c1c');
               return;
             }
             stopScanner();
@@ -440,12 +435,12 @@
             await submitProductionReport(normalized, 'barcode');
             loadQRInfo(normalized);
           } catch (error) {
-            setScanResultMessage('Khong ghi nhan duoc bao cao: ' + error.message, '#b91c1c');
+            setScanResultMessage('Không ghi nhận được báo cáo: ' + error.message, '#b91c1c');
           }
         },
         function() {}
       ).catch(function() {
-        alert('Khong the mo camera.\nVui long cho phep quyen Camera trong trinh duyet.');
+        alert('Không thể mở camera.\nvui lòng cho phép trong trình duyệt.');
         closeScanModal();
       });
     }
