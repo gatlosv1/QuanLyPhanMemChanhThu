@@ -145,7 +145,9 @@
     }
 
     function normalizeScannedValue(decodedText) {
-      const text = String(decodedText || '').trim();
+      const text = String(decodedText || '')
+        .replace(/[\u0000-\u001F\u007F]/g, '')
+        .trim();
       if (!text) return '';
 
       if (/^https?:\/\//i.test(text)) {
@@ -169,6 +171,28 @@
       }
 
       return text;
+    }
+
+    function normalizeBarcodeCandidate(value) {
+      return String(value || '')
+        .toUpperCase()
+        .replace(/[\u0000-\u001F\u007F]/g, '')
+        .replace(/\s+/g, '')
+        .replace(/[^0-9A-Z-]/g, '');
+    }
+
+    function getScanBoxConfig(mode) {
+      const viewportWidth = Math.min(window.innerWidth, 480);
+      const viewportHeight = Math.min(window.innerHeight, 720);
+
+      if (mode === 'qr-check') {
+        const qrSize = Math.max(180, Math.min(320, Math.floor(Math.min(viewportWidth, viewportHeight) * 0.7)));
+        return { width: qrSize, height: qrSize };
+      }
+
+      const barcodeWidth = Math.max(220, Math.min(360, Math.floor(viewportWidth * 0.82)));
+      const barcodeHeight = Math.max(110, Math.min(170, Math.floor(viewportHeight * 0.18)));
+      return { width: barcodeWidth, height: barcodeHeight };
     }
 
     function formatYYMMDDToVN(yyMMdd) {
@@ -371,8 +395,7 @@
       if (html5QrCode) stopScanner();
       html5QrCode = new Html5Qrcode('reader');
 
-      const scanBoxSize = Math.max(180, Math.min(320, Math.floor(Math.min(window.innerWidth, window.innerHeight) * 0.7)));
-      const scanConfig = { fps: 10, qrbox: { width: scanBoxSize, height: scanBoxSize }, aspectRatio: 1.333334 };
+      const scanConfig = { fps: mode === 'qr-check' ? 10 : 12, qrbox: getScanBoxConfig(mode), aspectRatio: 1.333334 };
       if (typeof Html5QrcodeSupportedFormats !== 'undefined') {
         if (mode === 'qr-check') {
           scanConfig.formatsToSupport = [Html5QrcodeSupportedFormats.QR_CODE];
@@ -407,10 +430,12 @@
           }
 
           if (mode === 'barcode-check') {
-            const upper = scannedValue.toUpperCase();
+            const upper = normalizeBarcodeCandidate(scannedValue);
             const parsed = parseBarcodeCode(upper);
             if (!parsed) {
-              setScanResultMessage('Mã vạch không đúng định dạng check digit.', '#b91c1c');
+              stopScanner();
+              closeScanModal();
+              loadQRInfo(upper || scannedValue);
               return;
             }
             stopScanner();
