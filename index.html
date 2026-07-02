@@ -134,8 +134,18 @@
                             <label class="block text-sm font-medium mb-1">SKU</label>
                             <input id="sku" type="text" class="w-full px-4 py-3 border rounded-xl font-mono text-base" placeholder="TP101020203.01.001" oninput="updatePreview()">
 
-                            <label class="block text-sm font-medium mb-1 mt-4">Loại SP (3 ký tự)</label>
-                            <input id="loaiSP" type="text" maxlength="3" value="R01" class="w-full px-4 py-3 border rounded-xl font-mono text-base uppercase" placeholder="R01" oninput="this.value = this.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 3); updatePreview()">
+                            <label class="block text-sm font-medium mb-1 mt-4">Nhóm Sản Phẩm</label>
+                            <div class="grid grid-cols-2 gap-4">
+                                <select id="nhomMaSP" class="w-full px-4 py-3 border rounded-xl" onchange="refreshLoaiSPCode(); updatePreview()">
+                                    <option value="1">Dona (1)</option>
+                                    <option value="2">Ri6 (2)</option>
+                                </select>
+                                <input id="sttMaSP" type="text" maxlength="2" value="01" inputmode="numeric" class="w-full px-4 py-3 border rounded-xl font-mono text-base" placeholder="01-06" oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 2); refreshLoaiSPCode(); updatePreview()">
+                            </div>
+
+                            <label class="block text-sm font-medium mb-1 mt-4">Loại SP (Mã 3 số)</label>
+                            <input id="loaiSP" type="text" maxlength="3" value="101" class="w-full px-4 py-3 border rounded-xl font-mono text-base bg-gray-50" placeholder="101" readonly>
+                            <p class="mt-1 text-xs text-slate-500">Công thức: Nhóm (Dona=1, Ri6=2) + STT mã (01-06). Ví dụ: 201, 106.</p>
 
                             <div class="grid grid-cols-2 gap-4 mt-4">
                                 <div>
@@ -395,12 +405,29 @@
             JsBarcode(svg, code, {
                 format: 'CODE128',
                 lineColor: '#111827',
-                width: 1.2,
-                height: 40,
+                width: 1.05,
+                height: 34,
                 displayValue: false,
                 margin: 0
             });
             return svg.outerHTML;
+        }
+
+        function formatBarcodeHumanText(code) {
+            const raw = String(code || '').trim().toUpperCase();
+            const digitsOnly = raw.replace(/\D/g, '');
+
+            // Nếu là chuỗi 13 số thì tách theo style EAN-13: 1-6-6.
+            if (digitsOnly.length === 13 && raw === digitsOnly) {
+                return `${digitsOnly.slice(0, 1)} ${digitsOnly.slice(1, 7)} ${digitsOnly.slice(7)}`;
+            }
+
+            // Với mã nội bộ đang dùng, giữ cụm theo dấu '-'.
+            if (raw.includes('-')) {
+                return raw.split('-').join(' ');
+            }
+
+            return raw;
         }
 
         function updateBarcodePreview() {
@@ -455,33 +482,51 @@
                     @page { size: 35mm 22mm; margin: 0 !important; }
                     html, body { width: 35mm; height: 22mm; margin: 0 !important; padding: 0 !important; }
                     body { font-family: Arial, sans-serif; overflow: hidden; }
-                    .label { width: 35mm; height: 22mm; box-sizing: border-box; padding: 1.2mm 1.1mm 1mm; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 0.5mm; page-break-after: always; }
-                    .barcode-svg { width: 100%; height: auto; display: block; }
-                    .code-text { width: 100%; font-size: 4.1pt; line-height: 1.05; text-align: center; word-break: break-all; font-weight: 700; color: #111827; }
+                    .label { width: 35mm; height: 22mm; box-sizing: border-box; padding: 1mm 1mm 0.8mm; display: grid; grid-template-rows: 13.2mm 3.8mm; align-content: center; justify-items: center; gap: 0.3mm; page-break-after: always; }
+                    .barcode-svg { width: 33mm; height: 13.2mm; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+                    .barcode-svg svg { width: 33mm !important; height: 13.2mm !important; max-width: 33mm; max-height: 13.2mm; display: block; }
+                    .barcode-svg svg * { shape-rendering: crispEdges; }
+                    .barcode-text { width: 33mm; text-align: center; font-family: Consolas, "Courier New", monospace; font-size: 1.58mm; line-height: 1; letter-spacing: 0.02mm; font-weight: 700; color: #111827; white-space: nowrap; overflow: hidden; }
                 </style>
             `;
 
             for (let i = 0; i < count; i += 1) {
                 const soThung = String(sttDau + i).padStart(4, '0');
                 const code = generateFullCode({ ...baseParts, soThung });
+                const humanText = formatBarcodeHumanText(code);
                 printContent += `
                     <div class="label">
                         <div class="barcode-svg">${renderBarcodeSvg(code)}</div>
-                        <div class="code-text">${escapeHtml(code)}</div>
+                        <div class="barcode-text">${escapeHtml(humanText)}</div>
                     </div>
                 `;
             }
 
-            const win = window.open('', '_blank', 'noopener,noreferrer');
-            if (!win) {
-                alert('Trình duyệt đã chặn cửa sổ in. Vui lòng cho phép pop-up để in mã vạch.');
-                return;
-            }
+            const existingFrame = document.getElementById('barcodePrintFrame');
+            if (existingFrame) existingFrame.remove();
 
-            win.document.write(`<html><head><title>In Barcode 35x22mm</title></head><body>${printContent}</body></html>`);
-            win.document.close();
+            const frame = document.createElement('iframe');
+            frame.id = 'barcodePrintFrame';
+            frame.style.position = 'fixed';
+            frame.style.right = '0';
+            frame.style.bottom = '0';
+            frame.style.width = '0';
+            frame.style.height = '0';
+            frame.style.border = '0';
+            frame.style.visibility = 'hidden';
 
-            setTimeout(() => win.print(), 400);
+            frame.onload = function () {
+                const frameWindow = frame.contentWindow;
+                if (!frameWindow) return;
+                frameWindow.focus();
+                setTimeout(() => frameWindow.print(), 300);
+            };
+
+            document.body.appendChild(frame);
+            const frameDoc = frame.contentDocument || frame.contentWindow.document;
+            frameDoc.open();
+            frameDoc.write(`<html><head><title>In Barcode 35x22mm</title></head><body>${printContent}</body></html>`);
+            frameDoc.close();
 
             logPrint();
             const nextSTT = sttCuoi + 1;
@@ -599,7 +644,7 @@
             const deleteAllowed = can('index.deleteHistory');
             const resetAllowed = can('index.resetStt');
 
-            const inputIds = ['maBTP', 'quyCach', 'vungNguyenLieu', 'sku', 'loaiSP', 'tenTP', 'sttDau', 'soLuongTem', 'ngaySX'];
+            const inputIds = ['maBTP', 'quyCach', 'vungNguyenLieu', 'sku', 'nhomMaSP', 'sttMaSP', 'tenTP', 'sttDau', 'soLuongTem', 'ngaySX'];
             inputIds.forEach((id) => {
                 const el = document.getElementById(id);
                 if (!el) return;
@@ -1076,13 +1121,44 @@
             return null;
         }
 
+        function inferNhomMaSPFromTenTP(tenTP) {
+            const upper = String(tenTP || '').toUpperCase();
+            if (upper.includes('DONA')) return '1';
+            if (upper.includes('RI6') || upper.includes('RI 6') || upper.includes('R6')) return '2';
+            return null;
+        }
+
+        function refreshLoaiSPCode() {
+            const tenTP = document.getElementById('tenTP')?.value || '';
+            const nhomSelect = document.getElementById('nhomMaSP');
+            const sttInput = document.getElementById('sttMaSP');
+            const loaiInput = document.getElementById('loaiSP');
+            if (!nhomSelect || !sttInput || !loaiInput) return '101';
+
+            const inferredGroup = inferNhomMaSPFromTenTP(tenTP);
+            if (inferredGroup) {
+                nhomSelect.value = inferredGroup;
+            }
+
+            const groupCode = String(nhomSelect.value || '1').replace(/[^0-9]/g, '').slice(0, 1) || '1';
+            const sttRaw = String(sttInput.value || '01').replace(/[^0-9]/g, '').slice(0, 2);
+            const sttNumber = Math.min(6, Math.max(1, parseInt(sttRaw || '1', 10)));
+            const sttCode = String(sttNumber).padStart(2, '0');
+            sttInput.value = sttCode;
+
+            const loaiCode = `${groupCode}${sttCode}`;
+            loaiInput.value = loaiCode;
+            return loaiCode;
+        }
+
         function getBarcodeFormParts() {
             const sttDau = parseInt(document.getElementById('sttDau').value, 10) || 1;
             const ngaySX = document.getElementById('ngaySX').value || new Date().toISOString().slice(0, 10);
             const ngayDG = document.getElementById('ngayDG').value || ngaySX;
+            const loaiCode = refreshLoaiSPCode();
 
             return {
-                loaiSP: document.getElementById('loaiSP').value || 'R01',
+                loaiSP: loaiCode,
                 maNCC: document.getElementById('maNCC').value || '09',
                 vungNL: document.getElementById('vungNguyenLieu').value || 'MT',
                 ngaySX,
@@ -1095,6 +1171,7 @@
         // ==================== CẬP NHẬT XEM TRƯỚC NHÃN ====================
         function updatePreview() {
             const preview = document.getElementById('previewLabel');
+            refreshLoaiSPCode();
             const sku = document.getElementById('sku').value || 'TP101020203.01.001';
             const maBTP = document.getElementById('maBTP').value || 'D009MT15066-02-0K';
             const tenTP = document.getElementById('tenTP').value || 'TP CẤP ĐÔNG SẦU RIÊNG...';

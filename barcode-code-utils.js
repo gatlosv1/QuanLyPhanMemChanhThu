@@ -16,13 +16,13 @@
     return text;
   }
 
-  function normalizeAlphanumeric(value, fieldName, length) {
-    const text = normalizeText(value).replace(/\s+/g, '');
+  function normalizeFixedDigits(value, fieldName, length) {
+    const text = String(value ?? '').trim();
     if (!text) {
       throw new Error(`${fieldName} không được để trống.`);
     }
-    if (!new RegExp(`^[A-Z0-9]{${length}}$`).test(text)) {
-      throw new Error(`${fieldName} phải gồm đúng ${length} ký tự chữ hoặc số.`);
+    if (!new RegExp(`^\\d{${length}}$`).test(text)) {
+      throw new Error(`${fieldName} phải gồm đúng ${length} chữ số.`);
     }
     return text;
   }
@@ -125,7 +125,7 @@
   }
 
   function buildBaseCode(parts) {
-    const loaiSP = normalizeAlphanumeric(parts.loaiSP ?? parts.LoaiSP ?? parts['LoạiSP'], 'LoạiSP', 3);
+    const loaiSP = normalizeFixedDigits(parts.loaiSP ?? parts.LoaiSP ?? parts['LoạiSP'], 'LoạiSP', 3);
     const maNCC = normalizeDigits(parts.maNCC ?? parts.MaNCC ?? parts['MãNCC'], 'MãNCC', 2);
     const vungNL = normalizeLetters(parts.vungNL ?? parts.VungNL ?? parts['VùngNL'], 'VùngNL', 2);
     const ngaySX = formatDatePart(parts.ngaySX ?? parts.NgaySX ?? parts['NgàySX'], 'NgàySX', 6);
@@ -144,7 +144,7 @@
 
   function extractParts(fullCode) {
     const code = normalizeText(fullCode).replace(/\s+/g, '');
-    const match = code.match(/^([A-Z0-9]{3})-([0-9]{2})([A-Z]{2})(\d{6})-([A-Z0-9]{2})-(\d{4})-(\d{4})-(\d{2})$/);
+    const match = code.match(/^(\d{3})-([0-9]{2})([A-Z]{2})(\d{6})-(\d{2})-(\d{4})-(\d{4})-(\d{2})$/);
 
     if (!match) {
       return null;
