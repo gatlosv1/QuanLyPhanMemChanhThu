@@ -28,16 +28,16 @@
       <div id="result" style="display:none;">
         <div class="ma-lo" id="maLoDisplay"></div>
         <div class="info-grid">
-          <div class="info-item"><div class="label">Ngay Nhap</div><div class="value" id="ngayDisplay"></div></div>
-          <div class="info-item"><div class="label">Bien So Xe</div><div class="value" id="biensoDisplay"></div></div>
-          <div class="info-item"><div class="label">Kho</div><div class="value" id="khoDisplay"></div></div>
-          <div class="info-item"><div class="label">TT Xe</div><div class="value" id="ttxeDisplay"></div></div>
-          <div class="info-item"><div class="label">Tong Khoi Luong</div><div class="value" id="tongklDisplay"></div></div>
-          <div class="info-item"><div class="label">Nha Cung Cap</div><div class="value" id="nccDisplay"></div></div>
-          <div class="info-item"><div class="label">Noi Xuat San</div><div class="value" id="noiDisplay"></div></div>
-          <div class="info-item"><div class="label">Hang</div><div class="value" id="hangDisplay"></div></div>
-          <div class="info-item"><div class="label">Mui</div><div class="value" id="muiDisplay"></div></div>
-          <div class="info-item"><div class="label">Vi Tri</div><div class="value" id="vitriDisplay"></div></div>
+          <div class="info-item"><div class="label" id="labelNgay">Ngay Nhap</div><div class="value" id="ngayDisplay"></div></div>
+          <div class="info-item"><div class="label" id="labelBienSo">Bien So Xe</div><div class="value" id="biensoDisplay"></div></div>
+          <div class="info-item"><div class="label" id="labelKho">Kho</div><div class="value" id="khoDisplay"></div></div>
+          <div class="info-item"><div class="label" id="labelTTXe">TT Xe</div><div class="value" id="ttxeDisplay"></div></div>
+          <div class="info-item"><div class="label" id="labelTongKL">Tong Khoi Luong</div><div class="value" id="tongklDisplay"></div></div>
+          <div class="info-item"><div class="label" id="labelNCC">Nha Cung Cap</div><div class="value" id="nccDisplay"></div></div>
+          <div class="info-item"><div class="label" id="labelNoi">Noi Xuat San</div><div class="value" id="noiDisplay"></div></div>
+          <div class="info-item"><div class="label" id="labelHang">Hang</div><div class="value" id="hangDisplay"></div></div>
+          <div class="info-item"><div class="label" id="labelMui">Mui</div><div class="value" id="muiDisplay"></div></div>
+          <div class="info-item"><div class="label" id="labelVitri">Vi Tri</div><div class="value" id="vitriDisplay"></div></div>
         </div>
 
       </div>
@@ -179,20 +179,53 @@
       return `${raw.slice(0, 2)}/${raw.slice(2, 4)}`;
     }
 
+    function setLabelText(id, text) {
+      const el = document.getElementById(id);
+      if (el) el.textContent = text;
+    }
+
+    function setDefaultInfoLabels() {
+      setLabelText('labelNgay', 'Ngay Nhap');
+      setLabelText('labelBienSo', 'Bien So Xe');
+      setLabelText('labelKho', 'Kho');
+      setLabelText('labelTTXe', 'TT Xe');
+      setLabelText('labelTongKL', 'Tong Khoi Luong');
+      setLabelText('labelNCC', 'Nha Cung Cap');
+      setLabelText('labelNoi', 'Noi Xuat San');
+      setLabelText('labelHang', 'Hang');
+      setLabelText('labelMui', 'Mui');
+      setLabelText('labelVitri', 'Vi Tri');
+    }
+
+    function setBarcodeInfoLabels() {
+      setLabelText('labelNgay', 'Ngay SX');
+      setLabelText('labelBienSo', 'Ngay DG');
+      setLabelText('labelKho', 'Ma Xe');
+      setLabelText('labelTTXe', 'Vung NL');
+      setLabelText('labelTongKL', 'Loai SP');
+      setLabelText('labelNCC', 'NCC');
+      setLabelText('labelNoi', 'Check Digit');
+      setLabelText('labelHang', 'Ma Quet');
+      setLabelText('labelMui', 'Ma Day Du');
+      setLabelText('labelVitri', 'Ghi Chu');
+    }
+
     function showParsedBarcodeInfo(parsed, scannedRaw) {
       if (!parsed) return;
 
+      setBarcodeInfoLabels();
+
       document.getElementById('maLoDisplay').textContent = parsed.fullCode || scannedRaw;
       document.getElementById('ngayDisplay').textContent = formatYYMMDDToVN(parsed.ngaySX);
-      document.getElementById('biensoDisplay').textContent = `Ma xe ${parsed.maXe}`;
-      document.getElementById('khoDisplay').textContent = parsed.vungNL || '-';
-      document.getElementById('tongklDisplay').textContent = parsed.soThung || '-';
-      document.getElementById('ttxeDisplay').textContent = parsed.checkDigit || '-';
+      document.getElementById('biensoDisplay').textContent = formatDDMMToVN(parsed.ngayDG);
+      document.getElementById('khoDisplay').textContent = parsed.maXe || '-';
+      document.getElementById('ttxeDisplay').textContent = parsed.vungNL || '-';
+      document.getElementById('tongklDisplay').textContent = parsed.loaiSP || '-';
       document.getElementById('nccDisplay').textContent = parsed.maNCC || '-';
-      document.getElementById('noiDisplay').textContent = 'Barcode noi bo';
-      document.getElementById('hangDisplay').textContent = parsed.loaiSP || '-';
-      document.getElementById('muiDisplay').textContent = formatDDMMToVN(parsed.ngayDG);
-      document.getElementById('vitriDisplay').textContent = parsed.hyphenCode || '-';
+      document.getElementById('noiDisplay').textContent = parsed.checkDigit || '-';
+      document.getElementById('hangDisplay').textContent = parsed.fullCode || '-';
+      document.getElementById('muiDisplay').textContent = parsed.hyphenCode || '-';
+      document.getElementById('vitriDisplay').textContent = 'Khong hien thi STT/Index tren man hinh check.';
     }
 
     async function submitProductionReport(scannedCode, sourceType) {
@@ -259,6 +292,7 @@
         }) : null;
 
         if (item) {
+          setDefaultInfoLabels();
           document.getElementById('maLoDisplay').textContent = item.ma_lo || maLo;
           document.getElementById('ngayDisplay').textContent = item.ngay_display || 'Khong co';
           document.getElementById('biensoDisplay').textContent = item.bienso && item.bienso.trim() !== '' ? item.bienso : 'Khong co';
@@ -285,6 +319,7 @@
           if (parsedBarcode) {
             showParsedBarcodeInfo(parsedBarcode, maLo);
           } else {
+            setDefaultInfoLabels();
             document.getElementById('maLoDisplay').textContent = maLo;
             document.getElementById('ngayDisplay').textContent = 'Khong tim thay chi tiet';
             document.getElementById('biensoDisplay').textContent = '-';
@@ -384,7 +419,7 @@
             closeScanModal();
             alert(
               'Ma vach hop le\n' +
-              `LoaiSP: ${parsed.loaiSP}\nNgay SX: ${parsed.ngayCode}\nSo thung: ${parsed.soLo}\nCheckDigit: ${parsed.checkDigit}`
+              `LoaiSP: ${parsed.loaiSP}\nNgay SX: ${parsed.ngayCode}\nNgay DG: ${parsed.ngayDG}\nCheckDigit: ${parsed.checkDigit}`
             );
             loadQRInfo(parsed.fullCode || parsed.hyphenCode);
             return;
@@ -421,6 +456,7 @@
 
     document.addEventListener('keydown', handleEscToCloseScanner);
     window.addEventListener('beforeunload', stopScanner);
+    setDefaultInfoLabels();
 
     const urlParams = new URLSearchParams(window.location.search);
     const maLo = urlParams.get('q');
