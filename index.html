@@ -38,6 +38,7 @@
 <body class="min-h-screen bg-slate-50 text-slate-800">
     <script src="firebase-config.js"></script>
     <script src="auth.js"></script>
+    <script src="barcode-code-utils.js"></script>
     <script>
         if (!requirePageAccess('index.html')) {
             document.write('');
@@ -133,8 +134,19 @@
                             <label class="block text-sm font-medium mb-1">SKU</label>
                             <input id="sku" type="text" class="w-full px-4 py-3 border rounded-xl font-mono text-base" placeholder="TP101020203.01.001" oninput="updatePreview()">
 
-                            <label class="block text-sm font-medium mb-1 mt-4">Loại SP (2-3 ký tự)</label>
-                            <input id="loaiSP" type="text" maxlength="3" value="RI" class="w-full px-4 py-3 border rounded-xl font-mono text-base uppercase" placeholder="RI" oninput="this.value = this.value.toUpperCase(); updatePreview()">
+                            <label class="block text-sm font-medium mb-1 mt-4">Loại SP (3 ký tự)</label>
+                            <input id="loaiSP" type="text" maxlength="3" value="R01" class="w-full px-4 py-3 border rounded-xl font-mono text-base uppercase" placeholder="R01" oninput="this.value = this.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 3); updatePreview()">
+
+                            <div class="grid grid-cols-2 gap-4 mt-4">
+                                <div>
+                                    <label class="block text-sm font-medium mb-1">Mã NCC (2 số)</label>
+                                    <input id="maNCC" type="text" maxlength="2" value="09" inputmode="numeric" class="w-full px-4 py-3 border rounded-xl font-mono text-base" placeholder="09" oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 2); updatePreview()">
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium mb-1">Mã Xe (2 số)</label>
+                                    <input id="maXe" type="text" maxlength="2" value="02" inputmode="numeric" class="w-full px-4 py-3 border rounded-xl font-mono text-base" placeholder="02" oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 2); updatePreview()">
+                                </div>
+                            </div>
 
                             <label class="block text-sm font-medium mb-1 mt-4">Tên Thành Phẩm</label>
                             <input id="tenTP" type="text" class="w-full px-4 py-3 border rounded-xl" placeholder="TP CẤP ĐÔNG SẦU RIÊNG..." oninput="updatePreview()">
@@ -171,10 +183,14 @@
                         </a>
                     </div>
 
-                    <div class="grid grid-cols-2 gap-4 mt-6">
+                    <div class="grid grid-cols-1 gap-4 mt-6 sm:grid-cols-3">
                         <button id="printNewBtn" onclick="printLabels(false)" 
                                 class="bg-blue-600 hover:bg-blue-700 text-white py-5 rounded-2xl text-xl font-semibold flex items-center justify-center gap-3">
                             <i class="fas fa-print"></i> IN NHÃN MỚI
+                        </button>
+                        <button id="printBarcode35x22Btn" onclick="printBarcode35x22()" 
+                                class="bg-emerald-600 hover:bg-emerald-700 text-white py-5 rounded-2xl text-xl font-semibold flex items-center justify-center gap-3">
+                            <i class="fas fa-barcode"></i> IN BARCODE 35x22mm
                         </button>
                         <button id="printReprintBtn" onclick="printLabels(true)" 
                                 class="bg-orange-600 hover:bg-orange-700 text-white py-5 rounded-2xl text-xl font-semibold flex items-center justify-center gap-3">
@@ -193,7 +209,7 @@
                     </div>
 
                     <div class="bg-white rounded-2xl shadow p-6">
-                        <h2 class="text-xl font-semibold mb-4">Xem Trước Mã Vạch</h2>
+                        <h2 class="text-xl font-semibold mb-4">Xem Trước Mã Vạch 35mm × 22mm</h2>
                         <div class="bg-gray-50 p-4 rounded-xl overflow-x-auto">
                             <svg id="barcodePreview" class="mx-auto"></svg>
                         </div>
@@ -370,78 +386,33 @@
             return `${yyyy.slice(-2)}${mm}${dd}`;
         }
 
-        function normalizeLoaiSP(rawLoai, skuValue) {
-            const cleanedLoai = String(rawLoai || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-            if (cleanedLoai.length >= 2) return cleanedLoai.slice(0, 3);
-
-            const skuPrefix = String(skuValue || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 3);
-            if (skuPrefix.length >= 2) return skuPrefix;
-
-            return 'RI';
-        }
-
-        function toMod97NumericString(value) {
-            const source = String(value || '').toUpperCase();
-            let out = '';
-            for (const ch of source) {
-                if (ch >= '0' && ch <= '9') {
-                    out += ch;
-                    continue;
-                }
-                if (ch >= 'A' && ch <= 'Z') {
-                    out += String(ch.charCodeAt(0) - 55);
-                }
-            }
-            return out;
-        }
-
-        function mod97FromNumericString(numericStr) {
-            let remainder = 0n;
-            for (const digit of numericStr) {
-                remainder = (remainder * 10n + BigInt(digit)) % 97n;
-            }
-            return remainder;
-        }
-
-        function generateCheckDigit_Mod97(baseCodeNoHyphen) {
-            const numericSource = toMod97NumericString(baseCodeNoHyphen) + '00';
-            const remainder = mod97FromNumericString(numericSource);
-            let check = 98n - remainder;
-            if (check === 98n) check = 0n;
-            return String(check).padStart(2, '0');
-        }
-
-        function validateCheckDigit_Mod97(fullCode) {
-            const parts = String(fullCode || '').toUpperCase().split('-');
-            if (parts.length !== 5) return false;
-            if (!/^\d{2}$/.test(parts[4])) return false;
-            const baseNoHyphen = `${parts[0]}${parts[1]}${parts[2]}${parts[3]}`;
-            return generateCheckDigit_Mod97(baseNoHyphen) === parts[4];
-        }
-
         function buildBarcodeCode() {
-            const prefix = 'BTP';
-            const sku = document.getElementById('sku')?.value || '';
-            const loaiInput = document.getElementById('loaiSP')?.value || '';
-            const loaiSP = normalizeLoaiSP(loaiInput, sku);
-            const ngay = toYYMMDD(document.getElementById('ngaySX')?.value || '');
-            const soLo = String(parseInt(document.getElementById('sttDau')?.value, 10) || 1).padStart(5, '0');
+            return generateFullCode(getBarcodeFormParts());
+        }
 
-            const baseNoHyphen = `${prefix}${loaiSP}${ngay}${soLo}`;
-            const checkDigit = generateCheckDigit_Mod97(baseNoHyphen);
-            return `${prefix}-${loaiSP}-${ngay}-${soLo}-${checkDigit}`;
+        function renderBarcodeSvg(code) {
+            const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+            JsBarcode(svg, code, {
+                format: 'CODE128',
+                lineColor: '#111827',
+                width: 1.2,
+                height: 40,
+                displayValue: false,
+                margin: 0
+            });
+            return svg.outerHTML;
         }
 
         function updateBarcodePreview() {
             const code = buildBarcodeCode();
-            const isValid = validateCheckDigit_Mod97(code);
+            const validation = validateCode(code);
 
             const valueEl = document.getElementById('barcodeValue');
             const statusEl = document.getElementById('barcodeStatus');
             if (valueEl) valueEl.textContent = code;
-            if (statusEl) statusEl.textContent = isValid
-                ? 'Check digit hợp lệ (MOD 97,10)'
-                : 'Check digit không hợp lệ';
+            if (statusEl) statusEl.textContent = validation.isValid
+                ? 'Check digit hợp lệ (MOD 97,10 - ISO 7064)'
+                : `Không hợp lệ: ${validation.error || 'lỗi không xác định'}`;
 
             if (typeof JsBarcode !== 'function') {
                 if (statusEl) statusEl.textContent = 'Không tải được thư viện mã vạch (JsBarcode).';
@@ -452,16 +423,71 @@
                 JsBarcode('#barcodePreview', code, {
                     format: 'CODE128',
                     lineColor: '#111827',
-                    width: 2,
-                    height: 78,
+                    width: 1.4,
+                    height: 66,
                     displayValue: true,
-                    fontSize: 14,
-                    margin: 8,
+                    fontSize: 12,
+                    margin: 6,
                     textMargin: 4
                 });
             } catch (error) {
                 if (statusEl) statusEl.textContent = 'Không tạo được mã vạch: ' + error.message;
             }
+        }
+
+        function printBarcode35x22() {
+            if (!guardPermission('index.print', 'Bạn không có quyền in mã vạch.')) return;
+
+            let baseParts;
+            try {
+                baseParts = getBarcodeFormParts();
+            } catch (error) {
+                alert(error.message || 'Không thể lấy dữ liệu barcode.');
+                return;
+            }
+
+            const sttDau = parseInt(document.getElementById('sttDau').value, 10) || 1;
+            const sttCuoi = parseInt(document.getElementById('sttCuoi').value, 10) || sttDau;
+            const count = Math.max(1, sttCuoi - sttDau + 1);
+
+            let printContent = `
+                <style>
+                    @page { size: 35mm 22mm; margin: 0 !important; }
+                    html, body { width: 35mm; height: 22mm; margin: 0 !important; padding: 0 !important; }
+                    body { font-family: Arial, sans-serif; overflow: hidden; }
+                    .label { width: 35mm; height: 22mm; box-sizing: border-box; padding: 1.2mm 1.1mm 1mm; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 0.5mm; page-break-after: always; }
+                    .barcode-svg { width: 100%; height: auto; display: block; }
+                    .code-text { width: 100%; font-size: 4.1pt; line-height: 1.05; text-align: center; word-break: break-all; font-weight: 700; color: #111827; }
+                </style>
+            `;
+
+            for (let i = 0; i < count; i += 1) {
+                const soThung = String(sttDau + i).padStart(4, '0');
+                const code = generateFullCode({ ...baseParts, soThung });
+                printContent += `
+                    <div class="label">
+                        <div class="barcode-svg">${renderBarcodeSvg(code)}</div>
+                        <div class="code-text">${escapeHtml(code)}</div>
+                    </div>
+                `;
+            }
+
+            const win = window.open('', '_blank', 'noopener,noreferrer');
+            if (!win) {
+                alert('Trình duyệt đã chặn cửa sổ in. Vui lòng cho phép pop-up để in mã vạch.');
+                return;
+            }
+
+            win.document.write(`<html><head><title>In Barcode 35x22mm</title></head><body>${printContent}</body></html>`);
+            win.document.close();
+
+            setTimeout(() => win.print(), 400);
+
+            logPrint();
+            const nextSTT = sttCuoi + 1;
+            document.getElementById('sttDau').value = nextSTT;
+            saveProductSTT(nextSTT, sttDau, sttCuoi);
+            updateSttCuoi();
         }
 
         function renderLotList(filtered = historyLots) {
@@ -592,6 +618,7 @@
             lockButton('loadFromGridBtn', editAllowed);
             lockButton('resetSttBtn', resetAllowed);
             lockButton('printNewBtn', printAllowed);
+            lockButton('printBarcode35x22Btn', printAllowed);
             lockButton('printReprintBtn', reprintAllowed);
             lockButton('reprintFromHistoryBtn', reprintAllowed);
             lockButton('deleteSelectedHistoryBtn', deleteAllowed);
@@ -860,6 +887,7 @@
             if (!db) return;
             const data = {
                 maBTP: document.getElementById('maBTP').value || '',
+                barcodeCode: buildBarcodeCode(),
                 sku: document.getElementById('sku').value || '',
                 tenTP: document.getElementById('tenTP').value || '',
                 quyCach: document.getElementById('quyCach').value || '20kg',
@@ -1046,6 +1074,22 @@
             if (upperLot.includes('DL')) return 'DL';
             if (upperLot.includes('MT')) return 'MT';
             return null;
+        }
+
+        function getBarcodeFormParts() {
+            const sttDau = parseInt(document.getElementById('sttDau').value, 10) || 1;
+            const ngaySX = document.getElementById('ngaySX').value || new Date().toISOString().slice(0, 10);
+            const ngayDG = document.getElementById('ngayDG').value || ngaySX;
+
+            return {
+                loaiSP: document.getElementById('loaiSP').value || 'R01',
+                maNCC: document.getElementById('maNCC').value || '09',
+                vungNL: document.getElementById('vungNguyenLieu').value || 'MT',
+                ngaySX,
+                maXe: document.getElementById('maXe').value || '02',
+                ngayDG,
+                soThung: String(sttDau).padStart(4, '0')
+            };
         }
 
         // ==================== CẬP NHẬT XEM TRƯỚC NHÃN ====================

@@ -9,6 +9,7 @@
 <body class="page-viewer">
   <script src="firebase-config.js"></script>
   <script src="auth.js"></script>
+  <script src="barcode-code-utils.js"></script>
   <script>
     if (!requirePageAccess('viewer.html')) {
       document.write('');
@@ -109,61 +110,29 @@
       box.style.color = color || '#111827';
     }
 
-    function toMod97NumericString(value) {
-      const source = String(value || '').toUpperCase();
-      let out = '';
-      for (const ch of source) {
-        if (ch >= '0' && ch <= '9') {
-          out += ch;
-          continue;
-        }
-        if (ch >= 'A' && ch <= 'Z') {
-          out += String(ch.charCodeAt(0) - 55);
-        }
-      }
-      return out;
-    }
-
-    function mod97FromNumericString(numericStr) {
-      let remainder = 0n;
-      for (const digit of numericStr) {
-        remainder = (remainder * 10n + BigInt(digit)) % 97n;
-      }
-      return remainder;
-    }
-
-    function generateCheckDigit_Mod97(baseCodeNoHyphen) {
-      const numericSource = toMod97NumericString(baseCodeNoHyphen) + '00';
-      const remainder = mod97FromNumericString(numericSource);
-      let check = 98n - remainder;
-      if (check === 98n) check = 0n;
-      return String(check).padStart(2, '0');
-    }
-
     function validateBarcodeCode(code) {
-      const parts = String(code || '').toUpperCase().split('-');
-      if (parts.length !== 5) return false;
-      if (parts[0] !== 'BTP') return false;
-      if (!/^[A-Z0-9]{2,3}$/.test(parts[1])) return false;
-      if (!/^\d{6}$/.test(parts[2])) return false;
-      if (!/^\d{5}$/.test(parts[3])) return false;
-      if (!/^\d{2}$/.test(parts[4])) return false;
-      const baseNoHyphen = `${parts[0]}${parts[1]}${parts[2]}${parts[3]}`;
-      const expected = generateCheckDigit_Mod97(baseNoHyphen);
-      return expected === parts[4];
+      return validateCode(code).isValid;
     }
 
     function parseBarcodeCode(code) {
-      const upper = String(code || '').toUpperCase();
+      const upper = String(code || '').toUpperCase().trim();
       if (!validateBarcodeCode(upper)) return null;
-      const parts = upper.split('-');
+      const parts = extractParts(upper);
+      if (!parts) return null;
       return {
-        fullCode: upper,
-        loaiSP: parts[1],
-        ngayCode: parts[2],
-        soLo: parts[3],
-        checkDigit: parts[4],
-        stt: parseInt(parts[3], 10) || 0
+        fullCode: parts.fullCode,
+        baseCode: parts.baseCode,
+        loaiSP: parts.loaiSP,
+        maNCC: parts.maNCC,
+        vungNL: parts.vungNL,
+        ngaySX: parts.ngaySX,
+        ngayCode: parts.ngaySX,
+        maXe: parts.maXe,
+        ngayDG: parts.ngayDG,
+        soThung: parts.soThung,
+        soLo: parts.soThung,
+        checkDigit: parts.checkDigit,
+        stt: parseInt(parts.soThung, 10) || 0
       };
     }
 
@@ -199,7 +168,7 @@
 
       const parsed = parseBarcodeCode(scannedCode);
       if (!parsed) {
-        throw new Error('Che do bao cao chi nhan ma vach BTP hop le.');
+        throw new Error('Che do bao cao chi nhan ma vach noi bo hop le.');
       }
 
       const now = new Date();
@@ -361,14 +330,14 @@
             const upper = scannedValue.toUpperCase();
             const parsed = parseBarcodeCode(upper);
             if (!parsed) {
-              setScanResultMessage('Ma vach khong dung dinh dang BTP hoac sai check digit.', '#b91c1c');
+              setScanResultMessage('Ma vach khong dung dinh dang hoac sai check digit.', '#b91c1c');
               return;
             }
             stopScanner();
             closeScanModal();
             alert(
               'Ma vach hop le\n' +
-              `LoaiSP: ${parsed.loaiSP}\nNgay: ${parsed.ngayCode}\nSo lo: ${parsed.soLo}\nCheckDigit: ${parsed.checkDigit}`
+              `LoaiSP: ${parsed.loaiSP}\nNgay SX: ${parsed.ngayCode}\nSo thung: ${parsed.soLo}\nCheckDigit: ${parsed.checkDigit}`
             );
             loadQRInfo(parsed.fullCode);
             return;
