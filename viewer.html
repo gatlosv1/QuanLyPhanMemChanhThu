@@ -120,7 +120,8 @@
       const parts = extractParts(upper);
       if (!parts) return null;
       return {
-        fullCode: parts.fullCode,
+        fullCode: parts.compactCode || (typeof toCompactCode === 'function' ? toCompactCode(parts.fullCode) : parts.fullCode),
+        hyphenCode: parts.fullCode,
         baseCode: parts.baseCode,
         loaiSP: parts.loaiSP,
         maNCC: parts.maNCC,
@@ -161,6 +162,37 @@
       }
 
       return text;
+    }
+
+    function formatYYMMDDToVN(yyMMdd) {
+      const raw = String(yyMMdd || '');
+      if (!/^\d{6}$/.test(raw)) return '-';
+      const dd = raw.slice(0, 2);
+      const mm = raw.slice(2, 4);
+      const yy = raw.slice(4, 6);
+      return `${dd}/${mm}/20${yy}`;
+    }
+
+    function formatDDMMToVN(ddMM) {
+      const raw = String(ddMM || '');
+      if (!/^\d{4}$/.test(raw)) return '-';
+      return `${raw.slice(0, 2)}/${raw.slice(2, 4)}`;
+    }
+
+    function showParsedBarcodeInfo(parsed, scannedRaw) {
+      if (!parsed) return;
+
+      document.getElementById('maLoDisplay').textContent = parsed.fullCode || scannedRaw;
+      document.getElementById('ngayDisplay').textContent = formatYYMMDDToVN(parsed.ngaySX);
+      document.getElementById('biensoDisplay').textContent = `Ma xe ${parsed.maXe}`;
+      document.getElementById('khoDisplay').textContent = parsed.vungNL || '-';
+      document.getElementById('tongklDisplay').textContent = parsed.soThung || '-';
+      document.getElementById('ttxeDisplay').textContent = parsed.checkDigit || '-';
+      document.getElementById('nccDisplay').textContent = parsed.maNCC || '-';
+      document.getElementById('noiDisplay').textContent = 'Barcode noi bo';
+      document.getElementById('hangDisplay').textContent = parsed.loaiSP || '-';
+      document.getElementById('muiDisplay').textContent = formatDDMMToVN(parsed.ngayDG);
+      document.getElementById('vitriDisplay').textContent = parsed.hyphenCode || '-';
     }
 
     async function submitProductionReport(scannedCode, sourceType) {
@@ -212,9 +244,19 @@
       error.style.display = 'none';
 
       try {
+        const parsedBarcode = parseBarcodeCode(maLo);
+        const lookupKeys = [String(maLo || '').trim().toUpperCase()];
+        if (parsedBarcode) {
+          if (parsedBarcode.hyphenCode) lookupKeys.push(parsedBarcode.hyphenCode);
+          if (parsedBarcode.fullCode) lookupKeys.push(parsedBarcode.fullCode);
+        }
+
         const snapshot = await historyRef.once('value');
         const data = snapshot.val();
-        let item = data ? Object.values(data).find(function(h) { return h.ma_lo === maLo; }) : null;
+        let item = data ? Object.values(data).find(function(h) {
+          const lot = String(h.ma_lo || '').trim().toUpperCase();
+          return lookupKeys.includes(lot);
+        }) : null;
 
         if (item) {
           document.getElementById('maLoDisplay').textContent = item.ma_lo || maLo;
@@ -240,10 +282,14 @@
 
           result.style.display = 'block';
         } else {
-          document.getElementById('maLoDisplay').textContent = maLo;
-          document.getElementById('ngayDisplay').textContent = 'Khong tim thay chi tiet';
-          document.getElementById('biensoDisplay').textContent = '-';
-          document.getElementById('khoDisplay').textContent = '-';
+          if (parsedBarcode) {
+            showParsedBarcodeInfo(parsedBarcode, maLo);
+          } else {
+            document.getElementById('maLoDisplay').textContent = maLo;
+            document.getElementById('ngayDisplay').textContent = 'Khong tim thay chi tiet';
+            document.getElementById('biensoDisplay').textContent = '-';
+            document.getElementById('khoDisplay').textContent = '-';
+          }
           result.style.display = 'block';
         }
       } catch (err) {
@@ -283,7 +329,8 @@
       if (html5QrCode) stopScanner();
       html5QrCode = new Html5Qrcode('reader');
 
-      const scanConfig = { fps: 10, qrbox: { width: 280, height: 280 } };
+      const scanBoxSize = Math.max(180, Math.min(320, Math.floor(Math.min(window.innerWidth, window.innerHeight) * 0.7)));
+      const scanConfig = { fps: 10, qrbox: { width: scanBoxSize, height: scanBoxSize }, aspectRatio: 1.333334 };
       if (typeof Html5QrcodeSupportedFormats !== 'undefined') {
         if (mode === 'qr-check') {
           scanConfig.formatsToSupport = [Html5QrcodeSupportedFormats.QR_CODE];
@@ -339,7 +386,7 @@
               'Ma vach hop le\n' +
               `LoaiSP: ${parsed.loaiSP}\nNgay SX: ${parsed.ngayCode}\nSo thung: ${parsed.soLo}\nCheckDigit: ${parsed.checkDigit}`
             );
-            loadQRInfo(parsed.fullCode);
+            loadQRInfo(parsed.fullCode || parsed.hyphenCode);
             return;
           }
 

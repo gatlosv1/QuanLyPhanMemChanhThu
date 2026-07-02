@@ -142,8 +142,29 @@
     return `${baseCode}-${checkDigit}`;
   }
 
-  function extractParts(fullCode) {
+  function toCompactCode(hyphenCode) {
+    return normalizeText(hyphenCode).replace(/-/g, '');
+  }
+
+  function generateScanCode(baseParts) {
+    return toCompactCode(generateFullCode(baseParts));
+  }
+
+  function normalizeCodeInput(fullCode) {
     const code = normalizeText(fullCode).replace(/\s+/g, '');
+    if (!code) return '';
+
+    // Dạng mới gọn cho quét: bỏ toàn bộ dấu '-'.
+    const compactMatch = code.match(/^(\d{3})(\d{2})([A-Z]{2})(\d{6})(\d{2})(\d{4})(\d{4})(\d{2})$/);
+    if (compactMatch) {
+      return `${compactMatch[1]}-${compactMatch[2]}${compactMatch[3]}${compactMatch[4]}-${compactMatch[5]}-${compactMatch[6]}-${compactMatch[7]}-${compactMatch[8]}`;
+    }
+
+    return code;
+  }
+
+  function extractParts(fullCode) {
+    const code = normalizeCodeInput(fullCode);
     const match = code.match(/^(\d{3})-([0-9]{2})([A-Z]{2})(\d{6})-(\d{2})-(\d{4})-(\d{4})-(\d{2})$/);
 
     if (!match) {
@@ -152,6 +173,7 @@
 
     return {
       fullCode: code,
+      compactCode: toCompactCode(code),
       baseCode: `${match[1]}-${match[2]}${match[3]}${match[4]}-${match[5]}-${match[6]}-${match[7]}`,
       loaiSP: match[1],
       maNCC: match[2],
@@ -199,15 +221,21 @@
 
   const api = {
     generateFullCode,
+    generateScanCode,
     validateCode,
     extractParts,
+    normalizeCodeInput,
+    toCompactCode,
     calculateCheckDigit,
     buildBaseCode
   };
 
   window.InternalBarcodeCode = api;
   window.generateFullCode = generateFullCode;
+  window.generateScanCode = generateScanCode;
   window.validateCode = validateCode;
   window.extractParts = extractParts;
+  window.normalizeCodeInput = normalizeCodeInput;
+  window.toCompactCode = toCompactCode;
   window.calculateCheckDigit = calculateCheckDigit;
 })(window);
