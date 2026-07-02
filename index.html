@@ -411,10 +411,11 @@
             JsBarcode(svg, code, {
                 format: 'CODE128',
                 lineColor: '#111827',
-                width: 1.05,
-                height: 34,
+                width: 1.55,
+                height: 68,
                 displayValue: false,
-                margin: 0
+                margin: 0,
+                background: '#ffffff'
             });
             return svg.outerHTML;
         }
@@ -462,11 +463,11 @@
                 JsBarcode('#barcodePreview', code, {
                     format: 'CODE128',
                     lineColor: '#111827',
-                    width: 1.4,
-                    height: 66,
+                    width: 1.8,
+                    height: 72,
                     displayValue: true,
                     fontSize: 12,
-                    margin: 6,
+                    margin: 10,
                     textMargin: 4
                 });
             } catch (error) {
@@ -494,22 +495,21 @@
                     @page { size: 35mm 22mm; margin: 0 !important; }
                     html, body { width: 35mm; height: 22mm; margin: 0 !important; padding: 0 !important; }
                     body { font-family: Arial, sans-serif; overflow: hidden; }
-                    .label { width: 35mm; height: 22mm; box-sizing: border-box; padding: 1mm 1mm 0.8mm; display: grid; grid-template-rows: 13.2mm 3.8mm; align-content: center; justify-items: center; gap: 0.3mm; page-break-after: always; }
-                    .barcode-svg { width: 33mm; height: 13.2mm; display: flex; align-items: center; justify-content: center; overflow: hidden; }
-                    .barcode-svg svg { width: 33mm !important; height: 13.2mm !important; max-width: 33mm; max-height: 13.2mm; display: block; }
+                    .label { width: 35mm; height: 22mm; box-sizing: border-box; padding: 0.5mm; display: grid; place-items: center; page-break-after: always; }
+                    .barcode-svg { width: 34mm; height: 20.6mm; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+                    .barcode-svg svg { width: 100% !important; height: 100% !important; max-width: 34mm; max-height: 20.6mm; display: block; }
                     .barcode-svg svg * { shape-rendering: crispEdges; }
-                    .barcode-text { width: 33mm; text-align: center; font-family: Consolas, "Courier New", monospace; font-size: 1.58mm; line-height: 1; letter-spacing: 0.02mm; font-weight: 700; color: #111827; white-space: nowrap; overflow: hidden; }
                 </style>
             `;
 
             for (let i = 0; i < count; i += 1) {
                 const soThung = String(sttDau + i).padStart(4, '0');
-                const code = generateFullCode({ ...baseParts, soThung });
-                const humanText = formatBarcodeHumanText(code);
+                const code = (typeof generateScanCode === 'function')
+                    ? generateScanCode({ ...baseParts, soThung })
+                    : String(generateFullCode({ ...baseParts, soThung }) || '').replace(/-/g, '');
                 printContent += `
                     <div class="label">
                         <div class="barcode-svg">${renderBarcodeSvg(code)}</div>
-                        <div class="barcode-text">${escapeHtml(humanText)}</div>
                     </div>
                 `;
             }
