@@ -111,13 +111,15 @@
     }
 
     function validateBarcodeCode(code) {
+      const shortValidation = typeof validateScanCode === 'function' ? validateScanCode(code) : { isValid: false };
+      if (shortValidation.isValid) return true;
       return validateCode(code).isValid;
     }
 
     function parseBarcodeCode(code) {
       const upper = String(code || '').toUpperCase().trim();
-      if (!validateBarcodeCode(upper)) return null;
-      const parts = extractParts(upper);
+      const shortParts = typeof extractScanCode === 'function' ? extractScanCode(upper) : null;
+      const parts = shortParts || extractParts(upper);
       if (!parts) return null;
       return {
         fullCode: parts.compactCode || (typeof toCompactCode === 'function' ? toCompactCode(parts.fullCode) : parts.fullCode),
@@ -133,7 +135,8 @@
         soThung: parts.soThung,
         soLo: parts.soThung,
         checkDigit: parts.checkDigit,
-        stt: parseInt(parts.soThung, 10) || 0
+        stt: parseInt(parts.soThung, 10) || 0,
+        isShortCode: !parts.soThung
       };
     }
 

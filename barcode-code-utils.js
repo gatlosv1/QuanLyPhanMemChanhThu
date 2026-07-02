@@ -142,12 +142,160 @@
     return `${baseCode}-${checkDigit}`;
   }
 
-  function toCompactCode(hyphenCode) {
-    return normalizeText(hyphenCode).replace(/-/g, '');
+  const REGION_TO_SCAN = {
+    DN: 'N',
+    MT: 'M',
+    BP: 'P',
+    DL: 'L'
+  };
+
+  const SCAN_TO_REGION = {
+    N: 'DN',
+    M: 'MT',
+    P: 'BP',
+    L: 'DL'
+  };
+
+  function toBase36(value, length) {
+    return Number(value).toString(36).toUpperCase().padStart(length, '0');
+  }
+
+  function fromBase36(value) {
+    return parseInt(String(value || '0'), 36);
+  }
+
+  function parseNgaySXDate(ngaySX) {
+    const raw = normalizeDigits(ngaySX, 'NgàySX', 6);
+    const day = parseInt(raw.slice(0, 2), 10);
+    const month = parseInt(raw.slice(2, 4), 10);
+    const year = 2000 + parseInt(raw.slice(4, 6), 10);
+    const date = new Date(Date.UTC(year, month - 1, day));
+    if (
+      Number.isNaN(date.getTime()) ||
+      date.getUTCFullYear() !== year ||
+      date.getUTCMonth() !== month - 1 ||
+      date.getUTCDate() !== day
+    ) {
+      throw new Error('NgàySX không hợp lệ.');
+    }
+    return date;
+  }
+
+  function encodeNgaySXCompact(ngaySX) {
+    const baseDate = Date.UTC(2000, 0, 1);
+    const targetDate = parseNgaySXDate(ngaySX).getTime();
+    const diffDays = Math.round((targetDate - baseDate) / 86400000);
+    return toBase36(diffDays, 3);
+  }
+
+  function decodeNgaySXCompact(value) {
+    const diffDays = fromBase36(value);
+    const date = new Date(Date.UTC(2000, 0, 1 + diffDays));
+    const day = String(date.getUTCDate()).padStart(2, '0');
+    const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+    const year = String(date.getUTCFullYear()).slice(-2);
+    return `${day}${month}${year}`;
+  }
+
+  function encodeNgayDGCompact(ngayDG) {
+    const raw = normalizeDigits(ngayDG, 'NgàyĐG', 4);
+    const day = parseInt(raw.slice(0, 2), 10);
+    const month = parseInt(raw.slice(2, 4), 10);
+    if (day < 1 || day > 31 || month < 1 || month > 12) {
+      throw new Error('NgàyĐG không hợp lệ.');
+    }
+    return toBase36((month - 1) * 31 + (day - 1), 2);
+  }
+
+  function decodeNgayDGCompact(value) {
+    const packed = fromBase36(value);
+    const month = Math.floor(packed / 31) + 1;
+    const day = (packed % 31) + 1;
+    return `${String(day).padStart(2, '0')}${String(month).padStart(2, '0')}`;
+  }
+
+  function normalizeParts(parts) {
+    return {
+      loaiSP: normalizeFixedDigits(parts.loaiSP ?? parts.LoaiSP ?? parts['LoạiSP'], 'LoạiSP', 3),
+      maNCC: normalizeDigits(parts.maNCC ?? parts.MaNCC ?? parts['MãNCC'], 'MãNCC', 2),
+      vungNL: normalizeLetters(parts.vungNL ?? parts.VungNL ?? parts['VùngNL'], 'VùngNL', 2),
+      ngaySX: formatDatePart(parts.ngaySX ?? parts.NgaySX ?? parts['NgàySX'], 'NgàySX', 6),
+      maXe: normalizeDigits(parts.maXe ?? parts.MaXe ?? parts['MãXe'], 'MãXe', 2),
+      ngayDG: formatDatePart(parts.ngayDG ?? parts.NgayDG ?? parts['NgàyĐG'], 'NgàyĐG', 4),
+      soThung: normalizeDigits(parts.soThung ?? parts.SoThung ?? parts['SốThùng'] ?? '0000', 'SốThùng', 4)
+    };
   }
 
   function generateScanCode(baseParts) {
-    return toCompactCode(generateFullCode(baseParts));
+    const parts = normalizeParts(baseParts);
+    const regionCode = REGION_TO_SCAN[parts.vungNL];
+    if (!regionCode) {
+      throw new Error('VùngNL không hỗ trợ cho mã quét rút gọn.');
+    }
+
+    // Mã quét rút gọn bỏ STT thùng để phù hợp quét trên tem 35x22mm.
+    const body = `${parts.loaiSP}${parts.maNCC}${regionCode}${encodeNgaySXCompact(parts.ngaySX)}${parts.maXe}${encodeNgayDGCompact(parts.ngayDG)}`;
+    const checkDigit = calculateCheckDigit(body);
+    return `${body}${checkDigit}`;
+  }
+
+  function extractScanCode(scanCode) {
+    const code = normalizeText(scanCode).replace(/\s+/g, '');
+    const match = code.match(/^(\d{3})(\d{2})([NMPL])([0-9A-Z]{3})(\d{2})([0-9A-Z]{2})(\d{2})$/);
+    if (!match) {
+      return null;
+    }
+
+    const body = code.slice(0, -2);
+    const checkDigit = code.slice(-2);
+    const expected = calculateCheckDigit(body);
+    if (expected !== checkDigit) {
+      return null;
+    }
+
+    const vungNL = SCAN_TO_REGION[match[3]];
+    if (!vungNL) {
+      return null;
+    }
+
+    const ngaySX = decodeNgaySXCompact(match[4]);
+    const ngayDG = decodeNgayDGCompact(match[6]);
+    const baseCode = `${match[1]}-${match[2]}${vungNL}${ngaySX}-${match[5]}-${ngayDG}`;
+
+    return {
+      scanCode: code,
+      fullCode: code,
+      compactCode: code,
+      baseCode,
+      loaiSP: match[1],
+      maNCC: match[2],
+      vungNL,
+      ngaySX,
+      maXe: match[5],
+      ngayDG,
+      soThung: '',
+      checkDigit
+    };
+  }
+
+  function validateScanCode(scanCode) {
+    const parsed = extractScanCode(scanCode);
+    if (!parsed) {
+      return {
+        isValid: false,
+        baseCode: '',
+        error: 'Mã barcode rút gọn không đúng định dạng hoặc sai check digit.'
+      };
+    }
+
+    return {
+      isValid: true,
+      baseCode: parsed.baseCode
+    };
+  }
+
+  function toCompactCode(hyphenCode) {
+    return normalizeText(hyphenCode).replace(/-/g, '');
   }
 
   function normalizeCodeInput(fullCode) {
@@ -222,6 +370,8 @@
   const api = {
     generateFullCode,
     generateScanCode,
+    validateScanCode,
+    extractScanCode,
     validateCode,
     extractParts,
     normalizeCodeInput,
@@ -233,6 +383,8 @@
   window.InternalBarcodeCode = api;
   window.generateFullCode = generateFullCode;
   window.generateScanCode = generateScanCode;
+  window.validateScanCode = validateScanCode;
+  window.extractScanCode = extractScanCode;
   window.validateCode = validateCode;
   window.extractParts = extractParts;
   window.normalizeCodeInput = normalizeCodeInput;
