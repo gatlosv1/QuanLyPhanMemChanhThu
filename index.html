@@ -422,7 +422,7 @@
                 width: 1.1,
                 height: 46,
                 displayValue: false,
-                margin: 0,
+                margin: 2,
                 background: '#ffffff',
                 ...customOptions
             });
@@ -504,11 +504,11 @@
                     @page { size: 35mm 22mm; margin: 0 !important; }
                     html, body { width: 35mm; height: 22mm; margin: 0 !important; padding: 0 !important; }
                     body { font-family: Arial, sans-serif; overflow: hidden; }
-                    .label { width: 35mm; height: 22mm; box-sizing: border-box; padding: 1.1mm 1.4mm 0.8mm; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; page-break-after: always; gap: 0.6mm; background: #ffffff; }
-                    .barcode-svg { width: 32.2mm; display: flex; align-items: center; justify-content: center; overflow: hidden; }
-                    .barcode-svg svg { width: 32.2mm !important; height: auto !important; display: block; }
+                    .label { width: 35mm; height: 22mm; box-sizing: border-box; padding: 1.0mm 1.8mm 0.8mm; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; page-break-after: always; gap: 0.7mm; background: #ffffff; }
+                    .barcode-svg { width: 31.4mm; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+                    .barcode-svg svg { width: 31.4mm !important; height: auto !important; display: block; }
                     .barcode-svg svg * { shape-rendering: crispEdges; }
-                    .barcode-text { width: 100%; text-align: center; font-size: 8.2px; line-height: 1; letter-spacing: 0.2px; color: #111827; white-space: nowrap; }
+                    .barcode-text { width: 100%; text-align: center; font-size: 8.0px; line-height: 1; letter-spacing: 0.15px; color: #111827; white-space: nowrap; }
                 </style>
             `;
 
@@ -519,7 +519,7 @@
                     : String(generateFullCode({ ...baseParts, soThung }) || '').replace(/-/g, '');
                 printContent += `
                     <div class="label">
-                        <div class="barcode-svg">${renderBarcodeSvg(code, { width: 1.16, height: 44, margin: 0 })}</div>
+                        <div class="barcode-svg">${renderBarcodeSvg(code, { width: 1.24, height: 46, margin: 2 })}</div>
                         <div class="barcode-text">${escapeHtml(code)}</div>
                     </div>
                 `;

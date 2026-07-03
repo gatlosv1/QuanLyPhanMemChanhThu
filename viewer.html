@@ -144,6 +144,35 @@
       };
     }
 
+    function parseLegacyBarcodeCode(code) {
+      const normalized = normalizeBarcodeCandidate(code);
+      if (!/^[0-9A-Z]{12,24}$/.test(normalized)) {
+        return null;
+      }
+
+      const sttMatch = normalized.match(/(\d{4})$/);
+      const skuMatch = normalized.match(/^(\d{3})/);
+
+      return {
+        fullCode: normalized,
+        hyphenCode: normalized,
+        baseCode: normalized,
+        loaiSP: skuMatch ? skuMatch[1] : 'LEGACY',
+        maNCC: '',
+        vungNL: '',
+        ngaySX: '',
+        ngayCode: '',
+        maXe: '',
+        ngayDG: '',
+        soThung: sttMatch ? sttMatch[1] : '',
+        soLo: sttMatch ? sttMatch[1] : '',
+        checkDigit: '',
+        stt: sttMatch ? parseInt(sttMatch[1], 10) : 0,
+        isShortCode: false,
+        codeType: 'legacy'
+      };
+    }
+
     function normalizeScannedValue(decodedText) {
       const text = String(decodedText || '')
         .replace(/[\u0000-\u001F\u007F]/g, '')
@@ -271,18 +300,22 @@
     async function submitProductionReport(scannedCode, sourceType) {
       if (!scannedCode) return;
 
-      const parsed = parseBarcodeCode(scannedCode);
+      const normalizedInput = normalizeBarcodeCandidate(scannedCode);
+      const parsed = parseBarcodeCode(normalizedInput) || parseLegacyBarcodeCode(normalizedInput);
       if (!parsed) {
-        throw new Error('Che do bao cao chi nhan ma vach noi bo hop le.');
+        throw new Error('Mã quét không hợp lệ. Hỗ trợ mã nội bộ và mã legacy 12-24 ký tự.');
       }
 
       const now = new Date();
-      const yyyy = 2000 + parseInt(parsed.ngayCode.slice(0, 2), 10);
-      const mm = parseInt(parsed.ngayCode.slice(2, 4), 10) - 1;
-      const dd = parseInt(parsed.ngayCode.slice(4, 6), 10);
-      const ngaySanXuat = new Date(yyyy, mm, dd);
+      let ngaySanXuat = now;
+      if (/^\d{6}$/.test(parsed.ngayCode || '')) {
+        const yyyy = 2000 + parseInt(parsed.ngayCode.slice(0, 2), 10);
+        const mm = parseInt(parsed.ngayCode.slice(2, 4), 10) - 1;
+        const dd = parseInt(parsed.ngayCode.slice(4, 6), 10);
+        ngaySanXuat = new Date(yyyy, mm, dd);
+      }
 
-      const uniqueCode = String(parsed.fullCode || parsed.hyphenCode || scannedCode).toUpperCase();
+      const uniqueCode = String(parsed.fullCode || parsed.hyphenCode || normalizedInput).toUpperCase();
       const docId = toScanReportDocId(uniqueCode);
       const scanRef = firestoreDb.collection('scanReports').doc(docId);
 
@@ -298,6 +331,7 @@
           sku: parsed.loaiSP,
           stt: parsed.stt,
           sourceType,
+          codeType: parsed.codeType || 'internal',
           checkDigit: parsed.checkDigit,
           ngaySanXuat: ngaySanXuat.toISOString().slice(0, 10),
           scannedBy: (window.getCurrentUser && window.getCurrentUser()?.username) || 'unknown',
@@ -310,7 +344,9 @@
       document.getElementById('reportSessionCount').textContent = String(reportSessionCount);
       document.getElementById('reportLastCode').textContent = uniqueCode;
       document.getElementById('reportLastTime').textContent = now.toLocaleString('vi-VN');
-      setScanResultMessage(`Da ghi nhan TEM DAT +1, STT IN = ${parsed.stt}`, '#047857');
+      const codeLabel = parsed.codeType === 'legacy' ? 'LEGACY' : 'NOI BO';
+      const sttText = parsed.stt ? `${parsed.stt}` : 'N/A';
+      setScanResultMessage(`Da ghi nhan TEM DAT +1 (${codeLabel}), STT IN = ${sttText}`, '#047857');
     }
 
     async function loadQRInfo(maLo) {
@@ -410,7 +446,12 @@
       if (html5QrCode) stopScanner();
       html5QrCode = new Html5Qrcode('reader');
 
-      const scanConfig = { fps: mode === 'qr-check' ? 10 : 12, qrbox: getScanBoxConfig(mode), aspectRatio: 1.333334 };
+      const scanConfig = {
+        fps: mode === 'qr-check' ? 10 : 8,
+        qrbox: getScanBoxConfig(mode),
+        aspectRatio: 1.333334,
+        experimentalFeatures: { useBarCodeDetectorIfSupported: true }
+      };
       if (typeof Html5QrcodeSupportedFormats !== 'undefined') {
         if (mode === 'qr-check') {
           scanConfig.formatsToSupport = [Html5QrcodeSupportedFormats.QR_CODE];
