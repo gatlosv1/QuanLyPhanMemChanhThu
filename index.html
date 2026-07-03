@@ -402,6 +402,12 @@
             return String(generateFullCode(getBarcodeFormParts()) || '').replace(/-/g, '');
         }
 
+        function buildBarcodeViewerUrl(code) {
+            const url = new URL('viewer.html', window.location.href);
+            url.searchParams.set('q', code);
+            return url.toString();
+        }
+
         function getBarcodeValidation(code) {
             const shortValidation = typeof validateScanCode === 'function'
                 ? validateScanCode(code)
@@ -454,11 +460,12 @@
 
         function updateBarcodePreview() {
             const code = buildBarcodeCode();
+            const viewerUrl = buildBarcodeViewerUrl(code);
             const validation = getBarcodeValidation(code);
 
             const valueEl = document.getElementById('barcodeValue');
             const statusEl = document.getElementById('barcodeStatus');
-            if (valueEl) valueEl.textContent = code;
+            if (valueEl) valueEl.textContent = viewerUrl;
             if (statusEl) statusEl.textContent = validation.isValid
                 ? 'Check digit hợp lệ (MOD 97,10 - ISO 7064)'
                 : `Không hợp lệ: ${validation.error || 'lỗi không xác định'}`;
@@ -469,7 +476,7 @@
             }
 
             try {
-                JsBarcode('#barcodePreview', code, {
+                JsBarcode('#barcodePreview', viewerUrl, {
                     format: 'CODE128',
                     lineColor: '#111827',
                     width: 1.8,
@@ -517,9 +524,10 @@
                 const code = (typeof generateScanCode === 'function')
                     ? generateScanCode({ ...baseParts, soThung })
                     : String(generateFullCode({ ...baseParts, soThung }) || '').replace(/-/g, '');
+                const viewerUrl = buildBarcodeViewerUrl(code);
                 printContent += `
                     <div class="label">
-                        <div class="barcode-svg">${renderBarcodeSvg(code, { width: 1.24, height: 46, margin: 2 })}</div>
+                        <div class="barcode-svg">${renderBarcodeSvg(viewerUrl, { width: 1.24, height: 46, margin: 2 })}</div>
                         <div class="barcode-text">${escapeHtml(code)}</div>
                     </div>
                 `;
