@@ -58,6 +58,15 @@
         <div style="font-size:14px; margin-bottom:6px;">Ma vua ghi nhan: <strong id="reportLastCode">-</strong></div>
         <div style="font-size:14px;">Thoi gian: <strong id="reportLastTime">-</strong></div>
       </div>
+
+      <div style="margin-top:12px; border:1px dashed #cbd5e1; border-radius:12px; padding:12px; background:#ffffff;">
+        <div style="font-weight:700; margin-bottom:6px;">Debug Quet Ma</div>
+        <div style="font-size:13px; margin-bottom:4px;">Che do: <strong id="debugMode">-</strong></div>
+        <div style="font-size:13px; margin-bottom:4px;">Trang thai: <strong id="debugStatus">-</strong></div>
+        <div style="font-size:13px; margin-bottom:4px;">Ma camera doc duoc: <strong id="debugRaw">-</strong></div>
+        <div style="font-size:13px; margin-bottom:4px;">Ma sau chuan hoa: <strong id="debugNormalized">-</strong></div>
+        <div style="font-size:13px;">Thoi diem: <strong id="debugTime">-</strong></div>
+      </div>
     </div>
   </div>
 
@@ -112,6 +121,20 @@
       const box = document.getElementById('scanResult');
       box.textContent = message;
       box.style.color = color || '#111827';
+    }
+
+    function updateScanDebug(rawValue, normalizedValue, mode, status) {
+      const rawEl = document.getElementById('debugRaw');
+      const normalizedEl = document.getElementById('debugNormalized');
+      const modeEl = document.getElementById('debugMode');
+      const statusEl = document.getElementById('debugStatus');
+      const timeEl = document.getElementById('debugTime');
+
+      if (rawEl) rawEl.textContent = String(rawValue || '-');
+      if (normalizedEl) normalizedEl.textContent = String(normalizedValue || '-');
+      if (modeEl) modeEl.textContent = String(mode || '-');
+      if (statusEl) statusEl.textContent = String(status || '-');
+      if (timeEl) timeEl.textContent = new Date().toLocaleString('vi-VN');
     }
 
     function validateBarcodeCode(code) {
@@ -426,6 +449,7 @@
       document.getElementById('scanTitle').textContent = titleMap[mode] || 'Quét mã';
       document.getElementById('scanModal').style.display = 'flex';
       setScanResultMessage('Sẳn sàng quét...', '#475569');
+      updateScanDebug('-', '-', mode, 'ready');
       startScanner(mode);
     }
 
@@ -473,7 +497,9 @@
         scanConfig,
         async function(decodedText) {
           const scannedValue = normalizeScannedValue(decodedText);
+          updateScanDebug(decodedText, scannedValue, mode, 'captured');
           if (!scannedValue) {
+            updateScanDebug(decodedText, '-', mode, 'empty-after-normalize');
             setScanResultMessage('Quét thành công.', '#b91c1c');
             return;
           }
@@ -489,11 +515,13 @@
             const upper = normalizeBarcodeCandidate(scannedValue);
             const parsed = parseBarcodeCode(upper);
             if (!parsed) {
+              updateScanDebug(decodedText, upper, mode, 'fallback-info-mode');
               stopScanner();
               closeScanModal();
               loadQRInfo(upper || scannedValue);
               return;
             }
+            updateScanDebug(decodedText, upper, mode, 'valid-internal');
             stopScanner();
             closeScanModal();
             alert(
@@ -514,8 +542,10 @@
 
           try {
             await submitProductionReport(normalized, 'barcode');
+            updateScanDebug(decodedText, normalized, mode, 'reported-success');
             loadQRInfo(normalized);
           } catch (error) {
+            updateScanDebug(decodedText, normalized, mode, `report-failed: ${error.message}`);
             setScanResultMessage('Không ghi nhận được báo cáo: ' + error.message, '#b91c1c');
           }
         },
