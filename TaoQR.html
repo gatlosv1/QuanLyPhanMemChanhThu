@@ -281,12 +281,6 @@
       container.appendChild(line);
     }
 
-    function buildViewerUrl(maLo) {
-      const url = new URL('viewer.html', window.location.href);
-      url.searchParams.set('q', maLo);
-      return url.toString();
-    }
-
     function renderQrText(item) {
       const qtext = document.getElementById('qtext');
       qtext.textContent = '';
@@ -295,31 +289,6 @@
       appendInfoLine(qtext, 'Tong KL: ', item.tongkl ? (item.tongkl + ' kg') : '');
       appendInfoLine(qtext, 'Bien so: ', item.bienso || '');
       appendInfoLine(qtext, 'Kho: ', item.khoDisplay || '');
-    }
-
-    function resolveViewerUrlFromScan(decodedText) {
-      const text = String(decodedText || '').trim();
-      if (!text) return null;
-
-      if (/^https?:\/\//i.test(text)) {
-        try {
-          const parsed = new URL(text);
-          const sameOrigin = parsed.origin === window.location.origin;
-          const isViewerPath = parsed.pathname.endsWith('/viewer.html') || parsed.pathname === '/viewer.html';
-          if (sameOrigin && isViewerPath) {
-            return parsed.pathname + parsed.search;
-          }
-        } catch (error) {
-          return null;
-        }
-        return null;
-      }
-
-      if (text.startsWith('viewer.html?q=')) {
-        return text;
-      }
-
-      return 'viewer.html?q=' + encodeURIComponent(text);
     }
 
     function renderHistory(filtered) {
@@ -387,7 +356,7 @@
 
     window.loadQRFromHistory = function(item) {
       document.getElementById('qrcode').innerHTML = '';
-      new QRCode(document.getElementById('qrcode'), {text: buildViewerUrl(item.ma_lo), width: 250, height: 250});
+      new QRCode(document.getElementById('qrcode'), {text: item.ma_lo, width: 250, height: 250});
       renderQrText({
         ma_lo: item.ma_lo,
         ngay_display: item.ngay_display,
@@ -457,8 +426,7 @@
       const khoDisplay = khoList.join(' - ');
 
       document.getElementById('qrcode').innerHTML = '';
-  const viewerUrl = buildViewerUrl(ma_lo);
-      new QRCode(document.getElementById('qrcode'), { text: viewerUrl, width: 250, height: 250 });
+        new QRCode(document.getElementById('qrcode'), { text: ma_lo, width: 250, height: 250 });
 
       renderQrText({
         ma_lo: ma_lo,
@@ -510,12 +478,7 @@
         function(decodedText) {
           stopScanner();
           document.getElementById('scanModal').style.display = 'none';
-          const targetUrl = resolveViewerUrlFromScan(decodedText);
-          if (!targetUrl) {
-            alert('Noi dung QR khong hop le hoac khong duoc phep.');
-            return;
-          }
-          window.location.href = targetUrl;
+          window.location.href = 'viewer.html?q=' + encodeURIComponent(String(decodedText || '').trim());
         },
         function() {}
       ).catch(function() {

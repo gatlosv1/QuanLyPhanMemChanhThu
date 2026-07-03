@@ -402,12 +402,6 @@
             return String(generateFullCode(getBarcodeFormParts()) || '').replace(/-/g, '');
         }
 
-        function buildBarcodeViewerUrl(code) {
-            const url = new URL('viewer.html', window.location.href);
-            url.searchParams.set('q', code);
-            return url.toString();
-        }
-
         function getBarcodeValidation(code) {
             const shortValidation = typeof validateScanCode === 'function'
                 ? validateScanCode(code)
@@ -428,7 +422,7 @@
                 width: 1.1,
                 height: 46,
                 displayValue: false,
-                margin: 2,
+                margin: 0,
                 background: '#ffffff',
                 ...customOptions
             });
@@ -460,12 +454,11 @@
 
         function updateBarcodePreview() {
             const code = buildBarcodeCode();
-            const viewerUrl = buildBarcodeViewerUrl(code);
             const validation = getBarcodeValidation(code);
 
             const valueEl = document.getElementById('barcodeValue');
             const statusEl = document.getElementById('barcodeStatus');
-            if (valueEl) valueEl.textContent = viewerUrl;
+            if (valueEl) valueEl.textContent = code;
             if (statusEl) statusEl.textContent = validation.isValid
                 ? 'Check digit hợp lệ (MOD 97,10 - ISO 7064)'
                 : `Không hợp lệ: ${validation.error || 'lỗi không xác định'}`;
@@ -476,15 +469,15 @@
             }
 
             try {
-                JsBarcode('#barcodePreview', viewerUrl, {
+                JsBarcode('#barcodePreview', code, {
                     format: 'CODE128',
                     lineColor: '#111827',
-                    width: 1.1,
-                    height: 54,
+                    width: 1.8,
+                    height: 72,
                     displayValue: true,
-                    fontSize: 10,
-                    margin: 6,
-                    textMargin: 2
+                    fontSize: 12,
+                    margin: 10,
+                    textMargin: 4
                 });
             } catch (error) {
                 if (statusEl) statusEl.textContent = 'Không tạo được mã vạch: ' + error.message;
@@ -511,11 +504,11 @@
                     @page { size: 35mm 22mm; margin: 0 !important; }
                     html, body { width: 35mm; height: 22mm; margin: 0 !important; padding: 0 !important; }
                     body { font-family: Arial, sans-serif; overflow: hidden; }
-                    .label { width: 35mm; height: 22mm; box-sizing: border-box; padding: 0.5mm 0.8mm 0.3mm; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; page-break-after: always; gap: 0.25mm; background: #ffffff; }
-                    .barcode-svg { width: 28.0mm; display: flex; align-items: center; justify-content: center; overflow: hidden; }
-                    .barcode-svg svg { width: 28.0mm !important; height: auto !important; display: block; }
+                    .label { width: 35mm; height: 22mm; box-sizing: border-box; padding: 1.1mm 1.4mm 0.8mm; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; page-break-after: always; gap: 0.6mm; background: #ffffff; }
+                    .barcode-svg { width: 32.2mm; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+                    .barcode-svg svg { width: 32.2mm !important; height: auto !important; display: block; }
                     .barcode-svg svg * { shape-rendering: crispEdges; }
-                    .barcode-text { width: 100%; text-align: center; font-size: 6.6px; line-height: 1; letter-spacing: 0; color: #111827; white-space: nowrap; }
+                    .barcode-text { width: 100%; text-align: center; font-size: 8.2px; line-height: 1; letter-spacing: 0.2px; color: #111827; white-space: nowrap; }
                 </style>
             `;
 
@@ -524,10 +517,9 @@
                 const code = (typeof generateScanCode === 'function')
                     ? generateScanCode({ ...baseParts, soThung })
                     : String(generateFullCode({ ...baseParts, soThung }) || '').replace(/-/g, '');
-                const viewerUrl = buildBarcodeViewerUrl(code);
                 printContent += `
                     <div class="label">
-                        <div class="barcode-svg">${renderBarcodeSvg(viewerUrl, { width: 0.82, height: 34, margin: 1 })}</div>
+                        <div class="barcode-svg">${renderBarcodeSvg(code, { width: 1.16, height: 44, margin: 0 })}</div>
                         <div class="barcode-text">${escapeHtml(code)}</div>
                     </div>
                 `;
