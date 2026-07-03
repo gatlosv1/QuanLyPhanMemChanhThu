@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Tao QR - QuanLyTraiCay</title>
+  <title>Tạo QR </title>
   <link rel="stylesheet" href="style.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
 </head>
@@ -17,25 +17,25 @@
   </script>
 
   <header>
-    <strong>Nhap Tao QRcode</strong>
-    <button type="button" class="back-link-btn" onclick="goToManagementPage()">Tro ve trang quan ly</button>
+    <strong>Nhập Tạo QRcode</strong>
+    <button type="button" class="back-link-btn" onclick="goToManagementPage()">trở về trang quản lý</button>
     <div id="realtimeClock" class="clock"></div>
   </header>
 
   <div class="wrapper">
     <div class="left">
       <div class="tabs">
-        <div class="tab active" id="tab-create">Tao QR</div>
-        <div class="tab" id="tab-history">Lich su</div>
+        <div class="tab active" id="tab-create">Tạo QR</div>
+        <div class="tab" id="tab-history">lịch Sử</div>
       </div>
 
       <div id="create-tab">
-        <h3>Tao QR Moi</h3>
+        <h3>Tạo QR</h3>
 
         <div class="form-row">
           <label for="ttxe">TTxe</label>
           <select id="ttxe">
-            <option value="">-- Chon --</option>
+            <option value="">-- Chọn-</option>
             <option value="01">01</option><option value="02">02</option><option value="03">03</option>
             <option value="04">04</option><option value="05">05</option><option value="06">06</option>
             <option value="07">07</option><option value="08">08</option><option value="09">09</option>
@@ -47,8 +47,8 @@
         </div>
 
         <div class="form-row">
-          <label for="bienso">Bien so xe</label>
-          <input id="bienso" type="text" placeholder="Vi du: 51H-123.45" style="flex:1">
+          <label for="bienso">Biển Số Xe</label>
+          <input id="bienso" type="text" placeholder="Ví dụ: 51H-123.45" style="flex:1">
         </div>
 
         <div class="form-row">
@@ -65,35 +65,37 @@
         </div>
 
         <div class="form-row">
-          <label for="ncc">NCC</label>
+          <label for="ncc">Nhà Cung Cấp</label>
           <select id="ncc">
             <option value="009">009 - CTBT</option>
-            <option value="010">010 - Nha cung cap B</option>
+            <option value="010">Bảo trì</option>
           </select>
-          <label for="vitri1" style="width:90px;">Vi Tri U 1</label>
-          <input id="vitri1" type="text" placeholder="Vi tri U1" style="width:140px">
+          <label for="vitri1" style="width:90px;">Vị trí ủ 1</label>
+          <input id="vitri1" type="text" placeholder="Vị trí ủ 1" style="width:140px">
+          <label for="vitri2" style="width:90px;">Vị trí ủ 2</label>
+          <input id="vitri2" type="text" placeholder="Vị trí ủ 2" style="width:140px">
         </div>
 
         <div class="form-row">
-          <label for="noi">Noi XS</label>
+          <label for="noi">Nơi SX</label>
           <select id="noi">
-            <option value="MT">MT - Mien Tay</option>
-            <option value="BP">BP - Binh Phuoc</option>
-            <option value="DN">DN - Dong Nai</option>
-            <option value="DL">DL - Dak Lak</option>
-            <option value="KH">KH - Khanh Hoa</option>
+            <option value="MT">MT - Miền tây</option>
+            <option value="BP">BP - Bình Phước</option>
+            <option value="DN">DN - Đồng Nai</option>
+            <option value="DL">DL - Đắk Lắk</option>
+            <option value="KH">KH - Khánh Hoà</option>
           </select>
           <label for="vitri2" style="width:90px;">Vi Tri U 2</label>
           <input id="vitri2" type="text" placeholder="Vi tri U2" style="width:140px">
         </div>
 
         <div class="form-row">
-          <label for="hang">Hang</label>
+          <label for="hang">Loại Hàng</label>
           <select id="hang">
             <option value="D">D</option>
             <option value="R">R</option>
           </select>
-          <label for="mui" style="width:90px;">Mui</label>
+          <label for="mui" style="width:90px;">Múi</label>
           <select id="mui" style="width:140px">
             <option value="0K">0K</option>
             <option value="0M">0M</option>
@@ -103,19 +105,19 @@
         </div>
 
         <div class="form-row">
-          <label for="ngay">Ngay Nhap</label>
+          <label for="ngay">Ngày Nhập</label>
           <input id="ngay" type="date" disabled>
         </div>
 
         <div class="form-row">
-          <label for="tongkl">Tong KL</label>
-          <input id="tongkl" type="text" placeholder="Nhap tong khoi luong (kg)">
+          <label for="tongkl">Tổng KL</label>
+          <input id="tongkl" type="text" placeholder="Nhập Tổng Khối lượng (kg)">
         </div>
 
         <div class="buttons">
-          <button id="clearBtn">Xoa</button>
-          <button id="scanBtn" class="scan-btn">Quet QR</button>
-          <button id="genBtn" class="primary">Tao QR</button>
+          <button id="clearBtn">Xoá</button>
+          <button id="scanBtn" class="scan-btn">Quét QR</button>
+          <button id="genBtn" class="primary">Tạo QR</button>
           <button id="printBtn">In</button>
         </div>
       </div>
@@ -124,9 +126,9 @@
         <h3>Lich su QR Code <span id="syncStatus" style="font-size:13px;"></span></h3>
 
         <div class="history-actions">
-          <button id="exportBtn" class="export-btn" style="display:none;">Tai lich su ve (ZIP)</button>
-          <button id="importBtn" class="import-btn" style="display:none;">Nhap lich su tu file</button>
-          <button id="deleteAllBtn" class="delete-all-btn" style="display:none;">Xoa toan bo lich su</button>
+          <button id="exportBtn" class="export-btn" style="display:none;">Tải lịch sử (ZIP)</button>
+          <button id="importBtn" class="import-btn" style="display:none;">Nhập lịch sử</button>
+          <button id="deleteAllBtn" class="delete-all-btn" style="display:none;">Xoá toàn bộ lịch sử</button>
         </div>
 
         <input type="text" id="searchHistory" placeholder="Tim theo ma QR..." style="width:100%; padding:10px; margin-bottom:10px;">
@@ -136,7 +138,7 @@
 
     <div class="right">
       <div id="print-area">
-        <div id="qrcode">cho tao QR</div>
+        <div id="qrcode">QR</div>
         <div id="qtext" class="note"></div>
       </div>
     </div>
@@ -151,9 +153,13 @@
       </div>
       <div id="reader" style="width:100%; max-width:400px; margin:20px auto;"></div>
       <div id="scanResult" style="text-align:center; padding:15px; min-height:50px;"></div>
+      
     </div>
+    
   </div>
-
+        <p class="text-center text-sm text-slate-600 mt-6">
+          © 2026 Copyright Chanh Thu Group.
+        </p>
   <input type="file" id="importFile" accept=".json" style="display:none;">
 
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
@@ -275,6 +281,12 @@
       container.appendChild(line);
     }
 
+    function buildViewerUrl(maLo) {
+      const url = new URL('viewer.html', window.location.href);
+      url.searchParams.set('q', maLo);
+      return url.toString();
+    }
+
     function renderQrText(item) {
       const qtext = document.getElementById('qtext');
       qtext.textContent = '';
@@ -375,7 +387,7 @@
 
     window.loadQRFromHistory = function(item) {
       document.getElementById('qrcode').innerHTML = '';
-      new QRCode(document.getElementById('qrcode'), {text: item.ma_lo, width: 250, height: 250});
+      new QRCode(document.getElementById('qrcode'), {text: buildViewerUrl(item.ma_lo), width: 250, height: 250});
       renderQrText({
         ma_lo: item.ma_lo,
         ngay_display: item.ngay_display,
@@ -445,7 +457,7 @@
       const khoDisplay = khoList.join(' - ');
 
       document.getElementById('qrcode').innerHTML = '';
-      const viewerUrl = 'viewer.html?q=' + encodeURIComponent(ma_lo);
+  const viewerUrl = buildViewerUrl(ma_lo);
       new QRCode(document.getElementById('qrcode'), { text: viewerUrl, width: 250, height: 250 });
 
       renderQrText({
