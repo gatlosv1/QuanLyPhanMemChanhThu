@@ -259,6 +259,15 @@
       document.getElementById('vitriDisplay').textContent = 'Khong hien thi STT/Index tren man hinh check.';
     }
 
+    function toScanReportDocId(code) {
+      return String(code || '')
+        .trim()
+        .toUpperCase()
+        .replace(/\s+/g, '')
+        .replace(/[^0-9A-Z_-]/g, '_')
+        .slice(0, 240);
+    }
+
     async function submitProductionReport(scannedCode, sourceType) {
       if (!scannedCode) return;
 
@@ -273,27 +282,33 @@
       const dd = parseInt(parsed.ngayCode.slice(4, 6), 10);
       const ngaySanXuat = new Date(yyyy, mm, dd);
 
-      await firestoreDb.collection('printHistory').add({
-        maBTP: parsed.fullCode,
-        sku: parsed.loaiSP,
-        tenTP: `SCAN-${parsed.loaiSP}`,
-        quyCach: '1',
-        soLuong: 1,
-        sttDau: parsed.stt,
-        sttCuoi: parsed.stt,
-        timestamp: firebase.firestore.FieldValue.serverTimestamp(),
-        source: 'scan-report',
-        sourceType,
-        scannedCode: parsed.fullCode,
-        checkDigit: parsed.checkDigit,
-        ngaySanXuat: ngaySanXuat.toISOString().slice(0, 10),
-        scannedBy: (window.getCurrentUser && window.getCurrentUser()?.username) || 'unknown',
-        scannedAtClient: now.toISOString()
+      const uniqueCode = String(parsed.fullCode || parsed.hyphenCode || scannedCode).toUpperCase();
+      const docId = toScanReportDocId(uniqueCode);
+      const scanRef = firestoreDb.collection('scanReports').doc(docId);
+
+      await firestoreDb.runTransaction(async (tx) => {
+        const existing = await tx.get(scanRef);
+        if (existing.exists) {
+          throw new Error('Tem nay da duoc quet truoc do, khong the quet lan 2.');
+        }
+
+        tx.set(scanRef, {
+          code: uniqueCode,
+          maBTP: parsed.fullCode,
+          sku: parsed.loaiSP,
+          stt: parsed.stt,
+          sourceType,
+          checkDigit: parsed.checkDigit,
+          ngaySanXuat: ngaySanXuat.toISOString().slice(0, 10),
+          scannedBy: (window.getCurrentUser && window.getCurrentUser()?.username) || 'unknown',
+          scannedAtClient: now.toISOString(),
+          timestamp: firebase.firestore.FieldValue.serverTimestamp()
+        });
       });
 
       reportSessionCount += 1;
       document.getElementById('reportSessionCount').textContent = String(reportSessionCount);
-      document.getElementById('reportLastCode').textContent = parsed.fullCode;
+      document.getElementById('reportLastCode').textContent = uniqueCode;
       document.getElementById('reportLastTime').textContent = now.toLocaleString('vi-VN');
       setScanResultMessage(`Da ghi nhan TEM DAT +1, STT IN = ${parsed.stt}`, '#047857');
     }

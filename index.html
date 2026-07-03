@@ -148,7 +148,7 @@
 
                             <label class="block text-sm font-medium mb-1 mt-4">Loại SP (Mã 3 số)</label>
                             <input id="loaiSP" type="text" maxlength="3" value="101" class="w-full px-4 py-3 border rounded-xl font-mono text-base bg-gray-50" placeholder="101" readonly>
-                            <p class="mt-1 text-xs text-slate-500">Công thức: Nhóm (Dona=1, Ri6=2) + STT mã (01-06). Ví dụ: 201, 106.</p>
+                            <p class="mt-1 text-xs text-slate-500">.</p>
 
                             <div class="grid grid-cols-2 gap-4 mt-4">
                                 <div>
@@ -203,11 +203,11 @@
                         </button>
                         <button id="printBarcode35x22Btn" onclick="printBarcode35x22()" 
                                 class="bg-emerald-600 hover:bg-emerald-700 text-white py-5 rounded-2xl text-xl font-semibold flex items-center justify-center gap-3">
-                            <i class="fas fa-barcode"></i> IN BARCODE 35x22mm
+                            <i class="fas fa-barcode"></i> In Mã vạch 35x22mm
                         </button>
                         <button id="printReprintBtn" onclick="printLabels(true)" 
                                 class="bg-orange-600 hover:bg-orange-700 text-white py-5 rounded-2xl text-xl font-semibold flex items-center justify-center gap-3">
-                            <i class="fas fa-redo"></i> IN LẠI 
+                            <i class="fas fa-redo"></i> In lại 
                         </button>
                     </div>
                 </div>
@@ -269,7 +269,7 @@
                     </div>
                     <div class="text-right">
                         <div id="temHong" class="text-4xl font-bold text-red-400">0</div>
-                        <div class="text-sm opacity-75">TEM HỒNG</div>
+                        <div class="text-sm opacity-75">TEM HỏNG</div>
                     </div>
                 </div>
                 <div class="grid grid-cols-2 gap-8">
@@ -286,23 +286,19 @@
 
             <div class="bg-white rounded-2xl shadow p-6">
                 <div class="flex justify-between items-center mb-4">
-                    <h3 class="text-xl font-semibold">Lịch sử in nhãn</h3>
+                    <h3 class="text-xl font-semibold">Lịch sử quét tem đạt</h3>
                     <div class="flex gap-3">
                         <button onclick="toggleSelectAll()" id="selectAllBtn"
                                 class="bg-gray-600 hover:bg-gray-700 text-white px-5 py-3 rounded-xl flex items-center gap-2 text-sm">
                             <i class="fas fa-check-square"></i> Chọn tất cả
                         </button>
-                        <button id="reprintFromHistoryBtn" onclick="reprintFromHistory()" 
-                                class="bg-orange-600 hover:bg-orange-700 text-white px-6 py-3 rounded-xl flex items-center gap-2">
-                            <i class="fas fa-redo"></i> In lại tem đã chọn
-                        </button>
                         <button id="deleteSelectedHistoryBtn" onclick="deleteSelectedHistory()" 
                                 class="bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-xl flex items-center gap-2">
-                            <i class="fas fa-trash"></i> Xóa đã chọn
+                            <i class="fas fa-trash"></i> Xóa lượt quét đã chọn
                         </button>
                         <button id="exportReportExcelBtn" onclick="exportReportExcel()" 
                                 class="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-3 rounded-xl flex items-center gap-2">
-                            <i class="fas fa-file-excel"></i> Tạo Excel Báo Cáo
+                            <i class="fas fa-file-excel"></i> Tạo Excel Quét Tem
                         </button>
                     </div>
                 </div>
@@ -406,16 +402,29 @@
             return String(generateFullCode(getBarcodeFormParts()) || '').replace(/-/g, '');
         }
 
-        function renderBarcodeSvg(code) {
+        function getBarcodeValidation(code) {
+            const shortValidation = typeof validateScanCode === 'function'
+                ? validateScanCode(code)
+                : { isValid: false };
+
+            if (shortValidation.isValid) {
+                return shortValidation;
+            }
+
+            return validateCode(code);
+        }
+
+        function renderBarcodeSvg(code, customOptions = {}) {
             const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
             JsBarcode(svg, code, {
                 format: 'CODE128',
                 lineColor: '#111827',
-                width: 0.46,
-                height: 52,
+                width: 1.1,
+                height: 46,
                 displayValue: false,
-                margin: 8,
-                background: '#ffffff'
+                margin: 0,
+                background: '#ffffff',
+                ...customOptions
             });
             return svg.outerHTML;
         }
@@ -445,7 +454,7 @@
 
         function updateBarcodePreview() {
             const code = buildBarcodeCode();
-            const validation = validateCode(code);
+            const validation = getBarcodeValidation(code);
 
             const valueEl = document.getElementById('barcodeValue');
             const statusEl = document.getElementById('barcodeStatus');
@@ -495,10 +504,11 @@
                     @page { size: 35mm 22mm; margin: 0 !important; }
                     html, body { width: 35mm; height: 22mm; margin: 0 !important; padding: 0 !important; }
                     body { font-family: Arial, sans-serif; overflow: hidden; }
-                    .label { width: 35mm; height: 22mm; box-sizing: border-box; padding: 1.2mm 2mm; display: grid; place-items: center; page-break-after: always; }
-                    .barcode-svg { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; overflow: hidden; }
-                    .barcode-svg svg { width: auto !important; height: auto !important; max-width: 100%; max-height: 100%; display: block; }
+                    .label { width: 35mm; height: 22mm; box-sizing: border-box; padding: 1.1mm 1.4mm 0.8mm; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; page-break-after: always; gap: 0.6mm; background: #ffffff; }
+                    .barcode-svg { width: 32.2mm; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+                    .barcode-svg svg { width: 32.2mm !important; height: auto !important; display: block; }
                     .barcode-svg svg * { shape-rendering: crispEdges; }
+                    .barcode-text { width: 100%; text-align: center; font-size: 8.2px; line-height: 1; letter-spacing: 0.2px; color: #111827; white-space: nowrap; }
                 </style>
             `;
 
@@ -509,7 +519,8 @@
                     : String(generateFullCode({ ...baseParts, soThung }) || '').replace(/-/g, '');
                 printContent += `
                     <div class="label">
-                        <div class="barcode-svg">${renderBarcodeSvg(code)}</div>
+                        <div class="barcode-svg">${renderBarcodeSvg(code, { width: 1.16, height: 44, margin: 0 })}</div>
+                        <div class="barcode-text">${escapeHtml(code)}</div>
                     </div>
                 `;
             }
@@ -635,7 +646,21 @@
         let products = [];
         let selectedIndex = -1;
         let printHistory = [];
+        let scanHistory = [];
         let selectedHistoryIds = new Set();
+        let totalPrintedTem = 0;
+        let scannedTemCount = 0;
+
+        function updateReportSummary() {
+            const total = Number(totalPrintedTem) || 0;
+            const scanned = Number(scannedTemCount) || 0;
+            const temHong = Math.max(0, total - scanned);
+
+            document.getElementById('totalTem').textContent = scanned.toLocaleString('vi-VN');
+            // Hiển thị STT cuối theo tổng tem đã in theo yêu cầu vận hành.
+            document.getElementById('lastSTT').textContent = total.toLocaleString('vi-VN');
+            document.getElementById('temHong').textContent = temHong.toLocaleString('vi-VN');
+        }
 
         function can(permissionKey) {
             return window.hasPermission ? window.hasPermission(permissionKey) : true;
@@ -771,18 +796,47 @@
                 let total = 0;
                 snapshot.forEach(doc => {
                     const data = doc.data();
+                    if (data.source === 'scan-report') {
+                        return;
+                    }
                     data.id = doc.id;
                     printHistory.push(data);
                     total += (data.soLuong || 0);
                 });
 
-                document.getElementById('totalTem').textContent = total.toLocaleString('vi-VN');
-                document.getElementById('lastSTT').textContent = printHistory.length ? printHistory[0].sttCuoi : 0;
-                document.getElementById('temHong').textContent = "0";
-                document.getElementById('lastUpdate').textContent = printHistory.length ? 
-                    new Date(printHistory[0].timestamp?.toDate() || Date.now()).toLocaleString('vi-VN') : "Chưa có";
+                totalPrintedTem = total;
+                updateReportSummary();
+            });
+        }
+
+        function loadScanReportStats() {
+            if (!db) return;
+            db.collection('scanReports').onSnapshot((snapshot) => {
+                scanHistory = [];
+                snapshot.forEach((doc) => {
+                    const data = doc.data() || {};
+                    scanHistory.push({ id: doc.id, ...data });
+                });
+
+                scanHistory.sort((a, b) => {
+                    const aMs = a.timestamp?.toDate ? a.timestamp.toDate().getTime() : new Date(a.scannedAtClient || 0).getTime();
+                    const bMs = b.timestamp?.toDate ? b.timestamp.toDate().getTime() : new Date(b.scannedAtClient || 0).getTime();
+                    return bMs - aMs;
+                });
+
+                scannedTemCount = scanHistory.length;
+                updateReportSummary();
+                selectedHistoryIds.forEach((id) => {
+                    if (!scanHistory.find(item => item.id === id)) selectedHistoryIds.delete(id);
+                });
+
+                document.getElementById('lastUpdate').textContent = scanHistory.length
+                    ? new Date(scanHistory[0].timestamp?.toDate?.() || scanHistory[0].scannedAtClient || Date.now()).toLocaleString('vi-VN')
+                    : "Chưa có dữ liệu";
 
                 renderHistoryTable();
+            }, (error) => {
+                console.error('Load scanReports failed:', error);
             });
         }
 
@@ -793,28 +847,28 @@
                     <tr>
                         <th class="px-4 py-3 text-center w-10"><input type="checkbox" id="headerCheckbox" onchange="toggleAllCheckboxes(this)"></th>
                         <th class="px-4 py-3 text-left">Thời gian</th>
-                        <th class="px-4 py-3 text-left">Mã Lot</th>
+                        <th class="px-4 py-3 text-left">Mã tem</th>
                         <th class="px-4 py-3 text-left">SKU</th>
-                        <th class="px-4 py-3 text-left">Tên TP</th>
-                        <th class="px-4 py-3 text-center">Số lượng</th>
-                        <th class="px-4 py-3 text-right">Quy Cách</th>
-                        <th class="px-4 py-3 text-right">Tổng KL (kg)</th>
+                        <th class="px-4 py-3 text-center">STT tem</th>
+                        <th class="px-4 py-3 text-left">Người quét</th>
+                        <th class="px-4 py-3 text-left">Nguồn</th>
                     </tr>
                 </thead>
                 <tbody>`;
-            
-            printHistory.forEach(item => {
-                const kg = parseFloat(item.quyCach) || 20;
-                const tongKL = (item.soLuong * kg).toFixed(0);
+
+            if (!scanHistory.length) {
+                html += `<tr><td colspan="7" class="px-4 py-8 text-center text-gray-500">Chưa có lượt quét tem đạt.</td></tr>`;
+            }
+
+            scanHistory.forEach(item => {
                 const isChecked = selectedHistoryIds.has(item.id);
                 const safeId = escapeHtml(item.id);
-                const safeTime = escapeHtml(new Date(item.timestamp?.toDate() || item.timestamp).toLocaleString('vi-VN'));
-                const safeMaBTP = escapeHtml(item.maBTP || '');
+                const safeTime = escapeHtml(new Date(item.timestamp?.toDate?.() || item.scannedAtClient || Date.now()).toLocaleString('vi-VN'));
+                const safeMaBTP = escapeHtml(item.code || item.maBTP || '');
                 const safeSku = escapeHtml(item.sku || '');
-                const safeTenTP = escapeHtml(item.tenTP || '');
-                const safeSoLuong = escapeHtml(item.soLuong || 0);
-                const safeQuyCach = escapeHtml(item.quyCach || '');
-                const safeTongKL = escapeHtml(tongKL);
+                const safeStt = escapeHtml(item.stt || 0);
+                const safeUser = escapeHtml(item.scannedBy || 'unknown');
+                const safeSource = escapeHtml(item.sourceType || 'barcode');
                 
                 html += `
                     <tr class="border-b hover:bg-gray-50" data-id="${safeId}">
@@ -826,10 +880,9 @@
                         <td class="px-4 py-3 text-xs">${safeTime}</td>
                         <td class="px-4 py-3 font-mono">${safeMaBTP}</td>
                         <td class="px-4 py-3 font-mono">${safeSku}</td>
-                        <td class="px-4 py-3">${safeTenTP}</td>
-                        <td class="px-4 py-3 text-center font-semibold">${safeSoLuong}</td>
-                        <td class="px-4 py-3 text-right">${safeQuyCach}</td>
-                        <td class="px-4 py-3 text-right font-bold">${safeTongKL} kg</td>
+                        <td class="px-4 py-3 text-center font-semibold">${safeStt}</td>
+                        <td class="px-4 py-3">${safeUser}</td>
+                        <td class="px-4 py-3">${safeSource}</td>
                     </tr>`;
             });
             html += `</tbody>`;
@@ -902,18 +955,18 @@
             if (!guardPermission('index.deleteHistory', 'Bạn không có quyền xóa lịch sử in.')) return;
             if (!db) return;
             if (selectedHistoryIds.size === 0) {
-                alert("Vui lòng tích chọn ít nhất một bản ghi để xóa!");
+                alert("Vui lòng tích chọn ít nhất một lượt quét để xóa!");
                 return;
             }
-            if (!confirm(`Bạn có chắc muốn xóa ${selectedHistoryIds.size} bản ghi lịch sử?`)) return;
+            if (!confirm(`Bạn có chắc muốn xóa ${selectedHistoryIds.size} lượt quét?`)) return;
 
             try {
                 const batch = db.batch();
                 selectedHistoryIds.forEach(id => {
-                    batch.delete(db.collection("printHistory").doc(id));
+                    batch.delete(db.collection("scanReports").doc(id));
                 });
                 await batch.commit();
-                alert(`✅ Đã xóa ${selectedHistoryIds.size} bản ghi!`);
+                alert(`✅ Đã xóa ${selectedHistoryIds.size} lượt quét!`);
                 selectedHistoryIds.clear();
             } catch (error) {
                 alert("Lỗi: " + error.message);
@@ -923,20 +976,19 @@
         // ==================== XUẤT BÁO CÁO RA EXCEL ====================
         function exportReportExcel() {
             if (!guardPermission('index.exportReport', 'Bạn không có quyền xuất báo cáo Excel.')) return;
-            if (printHistory.length === 0) return alert("Chưa có dữ liệu!");
-            const data = printHistory.map(item => ({
-                "Thời gian": new Date(item.timestamp?.toDate() || item.timestamp).toLocaleString('vi-VN'),
-                "Mã Lot": item.maBTP,
+            if (scanHistory.length === 0) return alert("Chưa có dữ liệu quét!");
+            const data = scanHistory.map(item => ({
+                "Thời gian": new Date(item.timestamp?.toDate?.() || item.scannedAtClient || Date.now()).toLocaleString('vi-VN'),
+                "Mã tem": item.code || item.maBTP,
                 "SKU": item.sku,
-                "Tên Thành Phẩm": item.tenTP,
-                "Số lượng tem": item.soLuong,
-                "Quy Cách": item.quyCach,
-                "Tổng khối lượng (kg)": item.soLuong * (parseFloat(item.quyCach) || 20)
+                "STT tem": item.stt || '',
+                "Người quét": item.scannedBy || 'unknown',
+                "Nguồn": item.sourceType || 'barcode'
             }));
             const ws = XLSX.utils.json_to_sheet(data);
             const wb = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(wb, ws, "BaoCao");
-            XLSX.writeFile(wb, `BaoCao_In_${new Date().toISOString().slice(0,10)}.xlsx`);
+            XLSX.utils.book_append_sheet(wb, ws, "QuetTem");
+            XLSX.writeFile(wb, `BaoCao_QuetTem_${new Date().toISOString().slice(0,10)}.xlsx`);
         }
 
         // ==================== GHI LỊCH SỬ IN TEM ====================
@@ -1295,6 +1347,7 @@
             applyIndexPermissions();
             loadProductSTT(true);
             loadPrintHistory();
+            loadScanReportStats();
             setTimeout(() => {
                 loadProductsFromFirebase();
                 updatePreview();
