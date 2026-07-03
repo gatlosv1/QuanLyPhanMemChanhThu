@@ -479,12 +479,12 @@
                 JsBarcode('#barcodePreview', viewerUrl, {
                     format: 'CODE128',
                     lineColor: '#111827',
-                    width: 1.8,
-                    height: 72,
+                    width: 1.1,
+                    height: 54,
                     displayValue: true,
-                    fontSize: 12,
-                    margin: 10,
-                    textMargin: 4
+                    fontSize: 10,
+                    margin: 6,
+                    textMargin: 2
                 });
             } catch (error) {
                 if (statusEl) statusEl.textContent = 'Không tạo được mã vạch: ' + error.message;
@@ -511,11 +511,11 @@
                     @page { size: 35mm 22mm; margin: 0 !important; }
                     html, body { width: 35mm; height: 22mm; margin: 0 !important; padding: 0 !important; }
                     body { font-family: Arial, sans-serif; overflow: hidden; }
-                    .label { width: 35mm; height: 22mm; box-sizing: border-box; padding: 1.0mm 1.8mm 0.8mm; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; page-break-after: always; gap: 0.7mm; background: #ffffff; }
-                    .barcode-svg { width: 31.4mm; display: flex; align-items: center; justify-content: center; overflow: hidden; }
-                    .barcode-svg svg { width: 31.4mm !important; height: auto !important; display: block; }
+                    .label { width: 35mm; height: 22mm; box-sizing: border-box; padding: 0.5mm 0.8mm 0.3mm; display: flex; flex-direction: column; align-items: center; justify-content: flex-start; page-break-after: always; gap: 0.25mm; background: #ffffff; }
+                    .barcode-svg { width: 28.0mm; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+                    .barcode-svg svg { width: 28.0mm !important; height: auto !important; display: block; }
                     .barcode-svg svg * { shape-rendering: crispEdges; }
-                    .barcode-text { width: 100%; text-align: center; font-size: 8.0px; line-height: 1; letter-spacing: 0.15px; color: #111827; white-space: nowrap; }
+                    .barcode-text { width: 100%; text-align: center; font-size: 6.6px; line-height: 1; letter-spacing: 0; color: #111827; white-space: nowrap; }
                 </style>
             `;
 
@@ -527,7 +527,7 @@
                 const viewerUrl = buildBarcodeViewerUrl(code);
                 printContent += `
                     <div class="label">
-                        <div class="barcode-svg">${renderBarcodeSvg(viewerUrl, { width: 1.24, height: 46, margin: 2 })}</div>
+                        <div class="barcode-svg">${renderBarcodeSvg(viewerUrl, { width: 0.82, height: 34, margin: 1 })}</div>
                         <div class="barcode-text">${escapeHtml(code)}</div>
                     </div>
                 `;
