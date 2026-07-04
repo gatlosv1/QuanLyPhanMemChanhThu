@@ -964,8 +964,8 @@
                     @page { size: 35mm 22mm; margin: 0 !important; }
                     html, body { width: 35mm; height: 22mm; margin: 0 !important; padding: 0 !important; }
                     body { font-family: Arial, sans-serif; background: #fff; }
-                    .label { width: 35mm; height: 22mm; box-sizing: border-box; padding: 0.6mm; display: flex; align-items: center; justify-content: center; }
-                    .qr-square { width: 20mm; height: 20mm; display: block; }
+                    .label { width: 35mm; height: 22mm; box-sizing: border-box; padding: 0.2mm; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+                    .qr-square { width: 18mm; height: 18mm; display: block; object-fit: contain; image-rendering: pixelated; }
                 </style>
                 <div class="label">
                     <img class="qr-square" src="${qrSrc}" alt="QR ${escapeHtml(maLo)}">
