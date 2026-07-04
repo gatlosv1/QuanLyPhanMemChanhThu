@@ -896,7 +896,7 @@
             updateSttCuoi();
         }
 
-        function printQr35x22() {
+        async function printQr35x22() {
             if (!guardPermission('index.print', 'Bạn không có quyền in QR.')) return;
             if (typeof QRCode !== 'function') {
                 alert('Không tải được thư viện QRCode.');
@@ -915,18 +915,44 @@
             hidden.style.position = 'fixed';
             hidden.style.left = '-99999px';
             hidden.style.top = '0';
+            hidden.style.background = '#fff';
+            hidden.style.padding = '0';
             document.body.appendChild(hidden);
-            new QRCode(hidden, {
-                text: viewerUrl,
-                width: 180,
-                height: 180,
-                correctLevel: QRCode.CorrectLevel.M
-            });
 
-            const qrImg = hidden.querySelector('img');
-            const qrCanvas = hidden.querySelector('canvas');
-            const qrSrc = qrImg ? qrImg.src : (qrCanvas ? qrCanvas.toDataURL('image/png') : '');
-            hidden.remove();
+            let qrSrc = '';
+            try {
+                new QRCode(hidden, {
+                    text: viewerUrl,
+                    width: 180,
+                    height: 180,
+                    correctLevel: QRCode.CorrectLevel.M
+                });
+
+                // qrcodejs có thể render bằng img/canvas/table tùy môi trường.
+                await new Promise((resolve) => setTimeout(resolve, 120));
+
+                const qrImg = hidden.querySelector('img');
+                const qrCanvas = hidden.querySelector('canvas');
+                const qrTable = hidden.querySelector('table');
+
+                if (qrImg && qrImg.src) {
+                    qrSrc = qrImg.src;
+                } else if (qrCanvas) {
+                    qrSrc = qrCanvas.toDataURL('image/png');
+                } else if (qrTable && typeof html2canvas === 'function') {
+                    const canvas = await html2canvas(qrTable, {
+                        backgroundColor: '#ffffff',
+                        scale: 2,
+                        logging: false,
+                        useCORS: true
+                    });
+                    qrSrc = canvas.toDataURL('image/png');
+                }
+            } catch (error) {
+                console.error('printQr35x22 failed to render QR:', error);
+            } finally {
+                hidden.remove();
+            }
 
             if (!qrSrc) {
                 alert('Không thể tạo hình QR để in.');
