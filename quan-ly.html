@@ -175,6 +175,15 @@
               <label class="block text-sm font-semibold text-slate-700 mb-2">Phần được phép chỉnh sửa</label>
               <div id="permissionEditor" class="grid grid-cols-1 gap-2 sm:grid-cols-2 rounded-xl border border-slate-200 bg-white p-3 text-sm"></div>
             </div>
+            <div id="quickEditPermissionWrap" class="sm:col-span-2 hidden rounded-xl border border-slate-200 bg-white p-3">
+              <label class="flex items-center justify-between gap-3 cursor-pointer">
+                <span>
+                  <span class="block text-sm font-semibold text-slate-700">Được phép chỉnh sửa</span>
+                  <span id="quickEditPermissionHint" class="block text-xs text-slate-500">Bật/tắt nhanh quyền chỉnh sửa theo trang đã chọn.</span>
+                </span>
+                <input id="quickEditPermission" type="checkbox" class="h-4 w-4 accent-brand-600">
+              </label>
+            </div>
             <div class="sm:col-span-2 flex gap-2">
               <button type="submit" class="flex-1 py-2 px-4 bg-brand-500 hover:bg-brand-600 text-white font-semibold rounded-xl transition">
                 <i data-lucide="save" class="h-4 w-4 inline mr-2"></i>Tạo Tài Khoản
@@ -256,6 +265,9 @@
         const newPageSelect = document.getElementById('newPage');
         const newRoleSelect = document.getElementById('newRole');
         const permissionEditor = document.getElementById('permissionEditor');
+        const quickEditPermissionWrap = document.getElementById('quickEditPermissionWrap');
+        const quickEditPermission = document.getElementById('quickEditPermission');
+        const quickEditPermissionHint = document.getElementById('quickEditPermissionHint');
         const cleanupAccountsBtn = document.getElementById('cleanupAccountsBtn');
         const permissionLabels = {
           'index.view': 'Xem trang In Tem',
@@ -278,11 +290,40 @@
           'manager.createAccount': 'Tạo tài khoản',
           'manager.manageAccounts': 'Quản trị tài khoản'
         };
+        const pageEditPermissionKeyMap = {
+          'index.html': 'index.edit',
+          'TaoQR.html': 'qr.create',
+          'viewer.html': 'viewer.scan',
+          'quan-ly.html': 'manager.manageAccounts'
+        };
         const navigationLinks = [
           { element: document.getElementById('navIndex'), page: 'index.html' },
           { element: document.getElementById('navQr'), page: 'TaoQR.html' },
           { element: document.getElementById('navViewer'), page: 'viewer.html' }
         ];
+
+        function getQuickEditPermissionKey() {
+          if (!newPageSelect) return '';
+          return pageEditPermissionKeyMap[newPageSelect.value] || '';
+        }
+
+        function syncQuickEditPermissionFromEditor() {
+          if (!quickEditPermissionWrap || !quickEditPermission || !newRoleSelect) return;
+          const isAdminRole = newRoleSelect.value === 'admin';
+          const key = getQuickEditPermissionKey();
+          const checkbox = key ? permissionEditor?.querySelector(`.permission-checkbox[data-permission="${key}"]`) : null;
+          const hasEditablePermission = !!checkbox;
+
+          quickEditPermissionWrap.classList.toggle('hidden', isAdminRole || !hasEditablePermission);
+          if (!hasEditablePermission) return;
+
+          const label = permissionLabels[key] || key;
+          if (quickEditPermissionHint) {
+            quickEditPermissionHint.textContent = `Bật/tắt nhanh quyền: ${label}.`;
+          }
+          quickEditPermission.checked = !!checkbox.checked;
+          quickEditPermission.disabled = !hasEditablePermission;
+        }
 
         function renderPermissionEditor() {
           if (!permissionEditor || !newPageSelect || !newRoleSelect) return;
@@ -295,11 +336,13 @@
 
           if (selectedRole === 'admin') {
             permissionEditor.innerHTML = '<div class="sm:col-span-2 rounded-lg bg-amber-50 border border-amber-200 p-3 text-amber-800">Tài khoản admin có toàn quyền trên mọi trang.</div>';
+            syncQuickEditPermissionFromEditor();
             return;
           }
 
           if (!keys.length) {
             permissionEditor.innerHTML = '<div class="sm:col-span-2 text-slate-500">Không có quyền mẫu cho trang này.</div>';
+            syncQuickEditPermissionFromEditor();
             return;
           }
 
@@ -308,6 +351,8 @@
             const label = permissionLabels[key] || key;
             return `<label class="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 cursor-pointer"><input class="permission-checkbox" type="checkbox" data-permission="${key}" ${checked}> <span>${label}</span></label>`;
           }).join('');
+
+          syncQuickEditPermissionFromEditor();
         }
 
         function collectPermissionsFromEditor() {
@@ -381,6 +426,25 @@
               newPageSelect.disabled = isAdminRole;
             }
             renderPermissionEditor();
+          });
+        }
+
+        if (quickEditPermission) {
+          quickEditPermission.addEventListener('change', () => {
+            const key = getQuickEditPermissionKey();
+            if (!key) return;
+            const checkbox = permissionEditor?.querySelector(`.permission-checkbox[data-permission="${key}"]`);
+            if (checkbox) {
+              checkbox.checked = quickEditPermission.checked;
+            }
+          });
+        }
+
+        if (permissionEditor) {
+          permissionEditor.addEventListener('change', (event) => {
+            const target = event.target;
+            if (!target || !target.classList || !target.classList.contains('permission-checkbox')) return;
+            syncQuickEditPermissionFromEditor();
           });
         }
 

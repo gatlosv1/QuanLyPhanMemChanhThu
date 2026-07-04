@@ -756,6 +756,56 @@
       document.getElementById('vitriDisplay').textContent = 'Khong hien thi STT/Index tren man hinh check.';
     }
 
+    async function findLotDetailFromFirestore(lookupKeys) {
+      for (const key of lookupKeys) {
+        try {
+          const querySnapshot = await firestoreDb
+            .collection('scanLotDetails')
+            .where('maLoUpper', '==', String(key || '').toUpperCase())
+            .limit(1)
+            .get();
+
+          if (!querySnapshot.empty) {
+            return querySnapshot.docs[0].data() || null;
+          }
+        } catch (error) {
+          console.error('findLotDetailFromFirestore error:', error);
+        }
+      }
+      return null;
+    }
+
+    function showLotDetailFromFirestore(detail, fallbackMaLo) {
+      if (!detail) return false;
+
+      setLabelText('labelNgay', 'Ten Thanh Pham');
+      setLabelText('labelBienSo', 'Quy Cach');
+      setLabelText('labelKho', 'Ma Nha Cung Cap');
+      setLabelText('labelTTXe', 'So Xe');
+      setLabelText('labelTongKL', 'Vung Nguyen Lieu');
+      setLabelText('labelNCC', 'Nhom San Pham');
+      setLabelText('labelNoi', 'Thoi Gian Tao');
+      setLabelText('labelHang', 'Nguon');
+      setLabelText('labelMui', 'Ma Lot');
+      setLabelText('labelVitri', 'Lien Ket View');
+
+      const maLo = detail.maLo || fallbackMaLo || '-';
+      document.getElementById('maLoDisplay').textContent = maLo;
+      document.getElementById('ngayDisplay').textContent = detail.tenThanhPham || '-';
+      document.getElementById('biensoDisplay').textContent = detail.quyCach || '-';
+      document.getElementById('khoDisplay').textContent = detail.maNhaCungCap || '-';
+      document.getElementById('ttxeDisplay').textContent = detail.soXe || '-';
+      document.getElementById('tongklDisplay').textContent = detail.vungNguyenLieu || '-';
+      document.getElementById('nccDisplay').textContent = detail.nhomSanPham || '-';
+      document.getElementById('noiDisplay').textContent = detail.createdAtClient
+        ? new Date(detail.createdAtClient).toLocaleString('vi-VN')
+        : '-';
+      document.getElementById('hangDisplay').textContent = detail.source || 'index-info-qr';
+      document.getElementById('muiDisplay').textContent = maLo;
+      document.getElementById('vitriDisplay').textContent = detail.viewerLink || '-';
+      return true;
+    }
+
     function toScanReportDocId(code) {
       return String(code || '')
         .trim()
@@ -866,16 +916,20 @@
 
           result.style.display = 'block';
         } else {
-          if (parsedBarcode) {
+          const lotDetail = await findLotDetailFromFirestore(lookupKeys);
+          if (lotDetail && showLotDetailFromFirestore(lotDetail, maLo)) {
+            result.style.display = 'block';
+          } else if (parsedBarcode) {
             showParsedBarcodeInfo(parsedBarcode, maLo);
+            result.style.display = 'block';
           } else {
             setDefaultInfoLabels();
             document.getElementById('maLoDisplay').textContent = maLo;
             document.getElementById('ngayDisplay').textContent = 'Khong tim thay chi tiet';
             document.getElementById('biensoDisplay').textContent = '-';
             document.getElementById('khoDisplay').textContent = '-';
+            result.style.display = 'block';
           }
-          result.style.display = 'block';
         }
       } catch (err) {
         error.style.display = 'block';
