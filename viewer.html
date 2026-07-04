@@ -80,6 +80,7 @@
       <div id="reader"></div>
       <div id="scanResult" style="text-align:center; padding:15px; min-height:50px;"></div>
       <div style="text-align:center; padding:0 15px 15px;">
+        <button type="button" id="torchBtn" class="scan-btn" style="display:none; margin-right:8px;">Bat den</button>
         <button type="button" class="scan-btn" onclick="closeScanModal()">Dong Camera (Esc)</button>
       </div>
       
@@ -112,10 +113,28 @@
     const historyRef = db.ref('qrHistory');
 
     let html5QrCode = null;
+    let scannerEngine = 'idle';
     let currentScanMode = 'qr-check';
     let reportSessionCount = 0;
     let lastReportScanValue = '';
     let lastReportScanAt = 0;
+    let lastAcceptedScan = '';
+    let lastAcceptedAt = 0;
+    let stableCandidate = '';
+    let stableCount = 0;
+    let scanLoopTimer = null;
+
+    let nativeStream = null;
+    let nativeTrack = null;
+    let nativeVideo = null;
+    let nativeOverlayCanvas = null;
+    let nativeOverlayCtx = null;
+    let nativeProcessCanvas = null;
+    let nativeProcessCtx = null;
+    let nativeDetector = null;
+    let nativeDetectorRoi = null;
+    let nativeZoomLastAt = 0;
+    let torchEnabled = false;
 
     function setScanResultMessage(message, color) {
       const box = document.getElementById('scanResult');
@@ -245,6 +264,432 @@
       const barcodeWidth = Math.max(220, Math.min(360, Math.floor(viewportWidth * 0.82)));
       const barcodeHeight = Math.max(110, Math.min(170, Math.floor(viewportHeight * 0.18)));
       return { width: barcodeWidth, height: barcodeHeight };
+    }
+
+    function getRequiredStableFrames(mode) {
+      return mode === 'qr-check' ? 2 : 3;
+    }
+
+    function getDebounceMs(mode) {
+      return mode === 'report' ? 1500 : 900;
+    }
+
+    function getDetectorFormats(mode) {
+      if (mode === 'qr-check') {
+        return ['qr_code'];
+      }
+      return ['code_128', 'code_39', 'ean_13', 'ean_8', 'upc_a', 'upc_e', 'qr_code'];
+    }
+
+    function resetStableScanState() {
+      stableCandidate = '';
+      stableCount = 0;
+      lastAcceptedScan = '';
+      lastAcceptedAt = 0;
+    }
+
+    function resetNativeScannerState() {
+      nativeDetectorRoi = null;
+      nativeZoomLastAt = 0;
+    }
+
+    function clamp(value, min, max) {
+      return Math.max(min, Math.min(max, value));
+    }
+
+    function getDynamicScanRegion(videoWidth, videoHeight, mode) {
+      const minSide = Math.min(videoWidth, videoHeight);
+      if (mode === 'qr-check') {
+        const size = Math.floor(minSide * 0.72);
+        return {
+          x: Math.floor((videoWidth - size) / 2),
+          y: Math.floor((videoHeight - size) / 2),
+          width: size,
+          height: size
+        };
+      }
+
+      const width = Math.floor(videoWidth * 0.88);
+      const height = Math.floor(videoHeight * 0.26);
+      return {
+        x: Math.floor((videoWidth - width) / 2),
+        y: Math.floor((videoHeight - height) / 2),
+        width,
+        height
+      };
+    }
+
+    function estimateLowLight(intervalCanvas, intervalCtx) {
+      try {
+        const sampleW = 40;
+        const sampleH = 30;
+        intervalCtx.drawImage(nativeVideo, 0, 0, sampleW, sampleH);
+        const imageData = intervalCtx.getImageData(0, 0, sampleW, sampleH).data;
+        let sum = 0;
+        for (let i = 0; i < imageData.length; i += 4) {
+          sum += (imageData[i] + imageData[i + 1] + imageData[i + 2]) / 3;
+        }
+        const avg = sum / (sampleW * sampleH);
+        return avg < 65;
+      } catch (_) {
+        return false;
+      }
+    }
+
+    async function toggleTorch() {
+      if (!nativeTrack) return;
+      try {
+        const capabilities = nativeTrack.getCapabilities ? nativeTrack.getCapabilities() : {};
+        if (!capabilities.torch) return;
+        torchEnabled = !torchEnabled;
+        await nativeTrack.applyConstraints({ advanced: [{ torch: torchEnabled }] });
+        const btn = document.getElementById('torchBtn');
+        if (btn) btn.textContent = torchEnabled ? 'Tat den' : 'Bat den';
+      } catch (error) {
+        setScanResultMessage('Khong the bat den tren thiet bi nay.', '#b91c1c');
+      }
+    }
+
+    function setupTorchButton() {
+      const btn = document.getElementById('torchBtn');
+      if (!btn) return;
+      btn.style.display = 'none';
+      btn.onclick = null;
+      btn.textContent = 'Bat den';
+
+      if (!nativeTrack || !nativeTrack.getCapabilities) return;
+      const capabilities = nativeTrack.getCapabilities();
+      if (!capabilities || !capabilities.torch) return;
+      btn.style.display = 'inline-block';
+      btn.onclick = toggleTorch;
+    }
+
+    async function tryAutoZoomByBox(box, frameWidth) {
+      if (!nativeTrack || !nativeTrack.getCapabilities || !nativeTrack.applyConstraints) return;
+      const now = Date.now();
+      if (now - nativeZoomLastAt < 1200) return;
+
+      const capabilities = nativeTrack.getCapabilities();
+      if (!capabilities || typeof capabilities.zoom === 'undefined') return;
+
+      const settings = nativeTrack.getSettings ? nativeTrack.getSettings() : {};
+      const minZoom = Number(capabilities.zoom.min || 1);
+      const maxZoom = Number(capabilities.zoom.max || minZoom);
+      let currentZoom = Number(settings.zoom || minZoom);
+      const boxRatio = box.width / Math.max(1, frameWidth);
+
+      if (boxRatio < 0.35) {
+        currentZoom = clamp(currentZoom + 0.35, minZoom, maxZoom);
+      } else if (boxRatio > 0.78) {
+        currentZoom = clamp(currentZoom - 0.25, minZoom, maxZoom);
+      } else {
+        return;
+      }
+
+      try {
+        await nativeTrack.applyConstraints({ advanced: [{ zoom: currentZoom }] });
+        nativeZoomLastAt = now;
+      } catch (_) {
+        // Ignore zoom constraint failures silently.
+      }
+    }
+
+    function getNormalizedByMode(scannedValue, mode) {
+      if (mode === 'qr-check') return String(scannedValue || '').trim();
+      return normalizeBarcodeCandidate(scannedValue);
+    }
+
+    async function processAcceptedScan(normalized, rawText, mode) {
+      if (mode === 'qr-check') {
+        stopScanner();
+        closeScanModal();
+        loadQRInfo(normalized);
+        return;
+      }
+
+      if (mode === 'barcode-check') {
+        const parsed = parseBarcodeCode(normalized) || parseLegacyBarcodeCode(normalized);
+        if (!parsed) {
+          updateScanDebug(rawText, normalized, mode, 'fallback-info-mode');
+          stopScanner();
+          closeScanModal();
+          loadQRInfo(normalized);
+          return;
+        }
+        updateScanDebug(rawText, normalized, mode, 'valid-barcode');
+        stopScanner();
+        closeScanModal();
+        alert(
+          'Ma vach hop le\n' +
+          `LoaiSP: ${parsed.loaiSP}\nNgay SX: ${parsed.ngayCode || '-'}\nNgay DG: ${parsed.ngayDG || '-'}\nCheckDigit: ${parsed.checkDigit || '-'}`
+        );
+        loadQRInfo(parsed.fullCode || parsed.hyphenCode || normalized);
+        return;
+      }
+
+      if (normalized === lastReportScanValue && Date.now() - lastReportScanAt < 1500) {
+        return;
+      }
+
+      lastReportScanValue = normalized;
+      lastReportScanAt = Date.now();
+
+      try {
+        await submitProductionReport(normalized, scannerEngine === 'native' ? 'barcode-native' : 'barcode-fallback');
+        updateScanDebug(rawText, normalized, mode, 'reported-success');
+        loadQRInfo(normalized);
+      } catch (error) {
+        updateScanDebug(rawText, normalized, mode, `report-failed: ${error.message}`);
+        setScanResultMessage('Khong ghi nhan duoc bao cao: ' + error.message, '#b91c1c');
+      }
+    }
+
+    async function processDecodedText(decodedText, mode) {
+      const scannedValue = normalizeScannedValue(decodedText);
+      const normalized = getNormalizedByMode(scannedValue, mode);
+      updateScanDebug(decodedText, normalized, mode, 'captured');
+
+      if (!normalized) {
+        updateScanDebug(decodedText, '-', mode, 'empty-after-normalize');
+        setScanResultMessage('Da quet, nhung du lieu khong hop le.', '#b91c1c');
+        stableCandidate = '';
+        stableCount = 0;
+        return;
+      }
+
+      if (normalized === stableCandidate) {
+        stableCount += 1;
+      } else {
+        stableCandidate = normalized;
+        stableCount = 1;
+      }
+
+      updateScanDebug(decodedText, normalized, mode, `stable ${stableCount}/${getRequiredStableFrames(mode)}`);
+      if (stableCount < getRequiredStableFrames(mode)) {
+        return;
+      }
+
+      const now = Date.now();
+      if (normalized === lastAcceptedScan && (now - lastAcceptedAt) < getDebounceMs(mode)) {
+        updateScanDebug(decodedText, normalized, mode, 'debounced');
+        return;
+      }
+
+      lastAcceptedScan = normalized;
+      lastAcceptedAt = now;
+      await processAcceptedScan(normalized, decodedText, mode);
+    }
+
+    function ensureNativeReaderLayout() {
+      const reader = document.getElementById('reader');
+      reader.innerHTML = `
+        <div style="position:relative; width:100%; max-width:520px; margin:0 auto; border-radius:12px; overflow:hidden; background:#000;">
+          <video id="nativeScanVideo" autoplay playsinline muted style="width:100%; height:auto; display:block;"></video>
+          <canvas id="nativeScanOverlay" style="position:absolute; inset:0; width:100%; height:100%; pointer-events:none;"></canvas>
+        </div>
+      `;
+      nativeVideo = document.getElementById('nativeScanVideo');
+      nativeOverlayCanvas = document.getElementById('nativeScanOverlay');
+      nativeOverlayCtx = nativeOverlayCanvas ? nativeOverlayCanvas.getContext('2d') : null;
+      nativeProcessCanvas = document.createElement('canvas');
+      nativeProcessCtx = nativeProcessCanvas.getContext('2d', { willReadFrequently: true });
+    }
+
+    function drawOverlay(region, detectedBox) {
+      if (!nativeOverlayCanvas || !nativeOverlayCtx || !nativeVideo) return;
+
+      const displayWidth = nativeVideo.clientWidth || 1;
+      const displayHeight = nativeVideo.clientHeight || 1;
+      nativeOverlayCanvas.width = displayWidth;
+      nativeOverlayCanvas.height = displayHeight;
+
+      nativeOverlayCtx.clearRect(0, 0, displayWidth, displayHeight);
+      nativeOverlayCtx.strokeStyle = 'rgba(99, 102, 241, 0.95)';
+      nativeOverlayCtx.lineWidth = 2;
+
+      const sx = displayWidth / Math.max(1, nativeVideo.videoWidth || displayWidth);
+      const sy = displayHeight / Math.max(1, nativeVideo.videoHeight || displayHeight);
+
+      nativeOverlayCtx.strokeRect(region.x * sx, region.y * sy, region.width * sx, region.height * sy);
+
+      if (detectedBox) {
+        nativeOverlayCtx.strokeStyle = 'rgba(34, 197, 94, 0.95)';
+        nativeOverlayCtx.lineWidth = 3;
+        nativeOverlayCtx.strokeRect(detectedBox.x * sx, detectedBox.y * sy, detectedBox.width * sx, detectedBox.height * sy);
+      }
+    }
+
+    async function runNativeScanLoop(mode) {
+      if (!nativeVideo || !nativeDetector || !nativeProcessCanvas || !nativeProcessCtx) return;
+      if (!nativeVideo.videoWidth || !nativeVideo.videoHeight) {
+        scanLoopTimer = setTimeout(() => runNativeScanLoop(mode), 120);
+        return;
+      }
+
+      const frameWidth = nativeVideo.videoWidth;
+      const frameHeight = nativeVideo.videoHeight;
+      let region = nativeDetectorRoi || getDynamicScanRegion(frameWidth, frameHeight, mode);
+
+      region = {
+        x: clamp(Math.floor(region.x), 0, frameWidth - 1),
+        y: clamp(Math.floor(region.y), 0, frameHeight - 1),
+        width: clamp(Math.floor(region.width), 20, frameWidth),
+        height: clamp(Math.floor(region.height), 20, frameHeight)
+      };
+
+      if (region.x + region.width > frameWidth) region.width = frameWidth - region.x;
+      if (region.y + region.height > frameHeight) region.height = frameHeight - region.y;
+
+      nativeProcessCanvas.width = region.width;
+      nativeProcessCanvas.height = region.height;
+      nativeProcessCtx.drawImage(
+        nativeVideo,
+        region.x,
+        region.y,
+        region.width,
+        region.height,
+        0,
+        0,
+        region.width,
+        region.height
+      );
+
+      let detections = [];
+      try {
+        detections = await nativeDetector.detect(nativeProcessCanvas);
+      } catch (_) {
+        detections = [];
+      }
+
+      let detectedBox = null;
+      if (detections && detections.length) {
+        const hit = detections[0];
+        const box = hit.boundingBox || { x: 0, y: 0, width: region.width, height: region.height };
+        detectedBox = {
+          x: region.x + box.x,
+          y: region.y + box.y,
+          width: box.width,
+          height: box.height
+        };
+
+        nativeDetectorRoi = {
+          x: clamp(Math.floor(detectedBox.x - detectedBox.width * 0.4), 0, frameWidth - 10),
+          y: clamp(Math.floor(detectedBox.y - detectedBox.height * 0.65), 0, frameHeight - 10),
+          width: clamp(Math.floor(detectedBox.width * 1.8), 40, frameWidth),
+          height: clamp(Math.floor(detectedBox.height * 2.1), 40, frameHeight)
+        };
+
+        await tryAutoZoomByBox(detectedBox, frameWidth);
+        await processDecodedText(hit.rawValue || '', mode);
+      } else {
+        nativeDetectorRoi = null;
+      }
+
+      drawOverlay(region, detectedBox);
+
+      const intervalCanvas = document.createElement('canvas');
+      intervalCanvas.width = 40;
+      intervalCanvas.height = 30;
+      const intervalCtx = intervalCanvas.getContext('2d', { willReadFrequently: true });
+      const lowLight = intervalCtx ? estimateLowLight(intervalCanvas, intervalCtx) : false;
+      const nextDelay = lowLight ? 180 : 90;
+      updateScanDebug(
+        document.getElementById('debugRaw')?.textContent || '-',
+        document.getElementById('debugNormalized')?.textContent || '-',
+        mode,
+        `${document.getElementById('debugStatus')?.textContent || 'running'} | ${lowLight ? 'low-light fps' : 'normal fps'}`
+      );
+
+      scanLoopTimer = setTimeout(() => runNativeScanLoop(mode), nextDelay);
+    }
+
+    async function startNativeScanner(mode) {
+      if (typeof BarcodeDetector === 'undefined') {
+        throw new Error('BarcodeDetector not available');
+      }
+
+      resetNativeScannerState();
+      ensureNativeReaderLayout();
+
+      nativeDetector = new BarcodeDetector({ formats: getDetectorFormats(mode) });
+
+      const constraints = {
+        audio: false,
+        video: {
+          facingMode: { ideal: 'environment' },
+          width: { ideal: 1920, max: 3840 },
+          height: { ideal: 1080, max: 2160 },
+          focusMode: 'continuous'
+        }
+      };
+
+      nativeStream = await navigator.mediaDevices.getUserMedia(constraints);
+      nativeVideo.srcObject = nativeStream;
+      await nativeVideo.play();
+      nativeTrack = nativeStream.getVideoTracks()[0] || null;
+      scannerEngine = 'native';
+      setupTorchButton();
+      updateScanDebug('-', '-', mode, 'native-engine-ready');
+      runNativeScanLoop(mode);
+    }
+
+    function getFallbackFormats(mode) {
+      if (typeof Html5QrcodeSupportedFormats === 'undefined') return null;
+      if (mode === 'qr-check') return [Html5QrcodeSupportedFormats.QR_CODE];
+      return [
+        Html5QrcodeSupportedFormats.QR_CODE,
+        Html5QrcodeSupportedFormats.CODE_128,
+        Html5QrcodeSupportedFormats.CODE_39,
+        Html5QrcodeSupportedFormats.EAN_13,
+        Html5QrcodeSupportedFormats.EAN_8,
+        Html5QrcodeSupportedFormats.UPC_A,
+        Html5QrcodeSupportedFormats.UPC_E
+      ];
+    }
+
+    async function startFallbackScanner(mode) {
+      const reader = document.getElementById('reader');
+      reader.innerHTML = '';
+      const torchBtn = document.getElementById('torchBtn');
+      if (torchBtn) {
+        torchBtn.style.display = 'none';
+        torchBtn.onclick = null;
+      }
+
+      if (html5QrCode) stopScanner();
+      html5QrCode = new Html5Qrcode('reader');
+
+      const scanConfig = {
+        fps: mode === 'qr-check' ? 10 : 8,
+        qrbox: getScanBoxConfig(mode),
+        aspectRatio: 1.333334,
+        experimentalFeatures: { useBarCodeDetectorIfSupported: true }
+      };
+      const fallbackFormats = getFallbackFormats(mode);
+      if (fallbackFormats) scanConfig.formatsToSupport = fallbackFormats;
+
+      scannerEngine = 'fallback';
+      updateScanDebug('-', '-', mode, 'fallback-engine-ready');
+
+      await html5QrCode.start(
+        {
+          facingMode: { exact: 'environment' }
+        },
+        scanConfig,
+        async (decodedText) => {
+          await processDecodedText(decodedText, mode);
+        },
+        function() {}
+      ).catch(async () => {
+        await html5QrCode.start(
+          { facingMode: 'environment' },
+          scanConfig,
+          async (decodedText) => {
+            await processDecodedText(decodedText, mode);
+          },
+          function() {}
+        );
+      });
     }
 
     function formatYYMMDDToVN(yyMMdd) {
@@ -441,6 +886,7 @@
 
     function startScanForMode(mode) {
       currentScanMode = mode;
+      resetStableScanState();
       const titleMap = {
         'qr-check': 'Quet QR de Check',
         'barcode-check': 'Quet Ma Vach de Check',
@@ -467,99 +913,48 @@
     }
 
     function startScanner(mode) {
-      if (html5QrCode) stopScanner();
-      html5QrCode = new Html5Qrcode('reader');
-
-      const scanConfig = {
-        fps: mode === 'qr-check' ? 10 : 8,
-        qrbox: getScanBoxConfig(mode),
-        aspectRatio: 1.333334,
-        experimentalFeatures: { useBarCodeDetectorIfSupported: true }
-      };
-      if (typeof Html5QrcodeSupportedFormats !== 'undefined') {
-        if (mode === 'qr-check') {
-          scanConfig.formatsToSupport = [Html5QrcodeSupportedFormats.QR_CODE];
-        } else {
-          scanConfig.formatsToSupport = [
-            Html5QrcodeSupportedFormats.QR_CODE,
-            Html5QrcodeSupportedFormats.CODE_128,
-            Html5QrcodeSupportedFormats.CODE_39,
-            Html5QrcodeSupportedFormats.EAN_13,
-            Html5QrcodeSupportedFormats.EAN_8,
-            Html5QrcodeSupportedFormats.UPC_A,
-            Html5QrcodeSupportedFormats.UPC_E
-          ];
+      stopScanner();
+      startNativeScanner(mode).catch(async function() {
+        try {
+          await startFallbackScanner(mode);
+        } catch (_) {
+          alert('Khong the mo camera.\nVui long cho phep quyen camera trong trinh duyet.');
+          closeScanModal();
         }
-      }
-
-      html5QrCode.start(
-        { facingMode: 'environment' },
-        scanConfig,
-        async function(decodedText) {
-          const scannedValue = normalizeScannedValue(decodedText);
-          updateScanDebug(decodedText, scannedValue, mode, 'captured');
-          if (!scannedValue) {
-            updateScanDebug(decodedText, '-', mode, 'empty-after-normalize');
-            setScanResultMessage('Quét thành công.', '#b91c1c');
-            return;
-          }
-
-          if (mode === 'qr-check') {
-            stopScanner();
-            closeScanModal();
-            loadQRInfo(scannedValue);
-            return;
-          }
-
-          if (mode === 'barcode-check') {
-            const upper = normalizeBarcodeCandidate(scannedValue);
-            const parsed = parseBarcodeCode(upper);
-            if (!parsed) {
-              updateScanDebug(decodedText, upper, mode, 'fallback-info-mode');
-              stopScanner();
-              closeScanModal();
-              loadQRInfo(upper || scannedValue);
-              return;
-            }
-            updateScanDebug(decodedText, upper, mode, 'valid-internal');
-            stopScanner();
-            closeScanModal();
-            alert(
-              'Ma vach hop le\n' +
-              `LoaiSP: ${parsed.loaiSP}\nNgay SX: ${parsed.ngayCode}\nNgay DG: ${parsed.ngayDG}\nCheckDigit: ${parsed.checkDigit}`
-            );
-            loadQRInfo(parsed.fullCode || parsed.hyphenCode);
-            return;
-          }
-
-          const now = Date.now();
-          const normalized = scannedValue.toUpperCase();
-          if (normalized === lastReportScanValue && now - lastReportScanAt < 1500) {
-            return;
-          }
-          lastReportScanValue = normalized;
-          lastReportScanAt = now;
-
-          try {
-            await submitProductionReport(normalized, 'barcode');
-            updateScanDebug(decodedText, normalized, mode, 'reported-success');
-            loadQRInfo(normalized);
-          } catch (error) {
-            updateScanDebug(decodedText, normalized, mode, `report-failed: ${error.message}`);
-            setScanResultMessage('Không ghi nhận được báo cáo: ' + error.message, '#b91c1c');
-          }
-        },
-        function() {}
-      ).catch(function() {
-        alert('Không thể mở camera.\nvui lòng cho phép trong trình duyệt.');
-        closeScanModal();
       });
     }
 
     function stopScanner() {
+      if (scanLoopTimer) {
+        clearTimeout(scanLoopTimer);
+        scanLoopTimer = null;
+      }
+
       if (html5QrCode) {
         html5QrCode.stop().catch(function() {});
         html5QrCode = null;
+      }
+
+      if (nativeStream) {
+        nativeStream.getTracks().forEach((track) => track.stop());
+        nativeStream = null;
+      }
+
+      nativeTrack = null;
+      nativeVideo = null;
+      nativeOverlayCanvas = null;
+      nativeOverlayCtx = null;
+      nativeProcessCanvas = null;
+      nativeProcessCtx = null;
+      nativeDetector = null;
+      scannerEngine = 'idle';
+      torchEnabled = false;
+
+      const torchBtn = document.getElementById('torchBtn');
+      if (torchBtn) {
+        torchBtn.style.display = 'none';
+        torchBtn.onclick = null;
+        torchBtn.textContent = 'Bat den';
       }
     }
 
