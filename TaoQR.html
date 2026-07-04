@@ -16,21 +16,40 @@
     }
   </script>
 
-  <header>
-    <strong>Nhập Tạo QRcode</strong>
-    <button type="button" class="back-link-btn" onclick="goToManagementPage()">trở về trang quản lý</button>
-    <div id="realtimeClock" class="clock"></div>
+  <header class="qr-topbar">
+    <div class="qr-topbar-left">
+      <div class="qr-brand-icon">QR</div>
+      <div>
+        <p class="qr-kicker">Hệ Thống</p>
+        <strong>Tạo QR</strong>
+      </div>
+    </div>
+    <div class="qr-topbar-actions">
+      <button type="button" class="back-link-btn" onclick="goToManagementPage()">trở về trang quản lý</button>
+      <div id="realtimeClock" class="clock"></div>
+    </div>
   </header>
 
-  <div class="wrapper">
-    <div class="left">
+  <main class="qr-page-shell">
+    <div class="qr-page-toolbar">
+      <h1>HỆ THỐNG TẠO QR NHẬP KHO</h1>
+      <p>Tạo và quản lý mã QR cho lô hàng, giữ nguyên dữ liệu và luồng thao tác hiện tại.</p>
+    </div>
+
+    <div class="wrapper">
+      <div class="left">
       <div class="tabs">
         <div class="tab active" id="tab-create">Tạo QR</div>
         <div class="tab" id="tab-history">lịch Sử</div>
       </div>
 
       <div id="create-tab">
-        <h3>Tạo QR</h3>
+        <div class="create-header">
+          <div>
+            <h3>Tạo QR</h3>
+            <p class="create-subtitle">Nhập thông tin lô và tạo mã QR nhanh, gọn, dễ in.</p>
+          </div>
+        </div>
 
         <div class="form-row">
           <label for="ttxe">TTxe</label>
@@ -51,29 +70,47 @@
           <input id="bienso" type="text" placeholder="Ví dụ: 51H-123.45" style="flex:1">
         </div>
 
-        <div class="form-row">
-          <label for="kho1">Kho 1</label>
-          <input id="kho1" type="text" placeholder="Kho 1" style="flex:1">
-          <label for="kho2" style="width:70px; text-align:right;">Kho 2</label>
-          <input id="kho2" type="text" placeholder="Kho 2" style="flex:1">
-        </div>
-        <div class="form-row">
-          <label for="kho3">Kho 3</label>
-          <input id="kho3" type="text" placeholder="Kho 3" style="flex:1">
-          <label for="kho4" style="width:70px; text-align:right;">Kho 4</label>
-          <input id="kho4" type="text" placeholder="Kho 4" style="flex:1">
+        <div class="form-row form-row-grid">
+          <label>Kho</label>
+          <div class="field-grid two-col">
+            <div class="field-inline">
+              <span class="inline-label">Kho 1</span>
+              <input id="kho1" type="text" placeholder="Kho 1">
+            </div>
+            <div class="field-inline">
+              <span class="inline-label">Kho 2</span>
+              <input id="kho2" type="text" placeholder="Kho 2">
+            </div>
+            <div class="field-inline">
+              <span class="inline-label">Kho 3</span>
+              <input id="kho3" type="text" placeholder="Kho 3">
+            </div>
+            <div class="field-inline">
+              <span class="inline-label">Kho 4</span>
+              <input id="kho4" type="text" placeholder="Kho 4">
+            </div>
+          </div>
         </div>
 
-        <div class="form-row">
-          <label for="ncc">Nhà Cung Cấp</label>
-          <select id="ncc">
-            <option value="009">009 - CTBT</option>
-            <option value="010">Bảo trì</option>
-          </select>
-          <label for="vitri1" style="width:90px;">Vị trí ủ 1</label>
-          <input id="vitri1" type="text" placeholder="Vị trí ủ 1" style="width:140px">
-          <label for="vitri2" style="width:90px;">Vị trí ủ 2</label>
-          <input id="vitri2" type="text" placeholder="Vị trí ủ 2" style="width:140px">
+        <div class="form-row form-row-grid">
+          <label>Ủ hàng</label>
+          <div class="field-grid two-col">
+            <div class="field-inline">
+              <span class="inline-label">Nhà Cung Cấp</span>
+              <select id="ncc">
+                <option value="009">009 - CTBT</option>
+                <option value="010">Bảo trì</option>
+              </select>
+            </div>
+            <div class="field-inline">
+              <span class="inline-label">Vị trí ủ 1</span>
+              <input id="vitri1" type="text" placeholder="Vị trí ủ 1">
+            </div>
+            <div class="field-inline field-inline-wide">
+              <span class="inline-label">Vị trí ủ 2</span>
+              <input id="vitri2" type="text" placeholder="Vị trí ủ 2">
+            </div>
+          </div>
         </div>
 
         <div class="form-row">
@@ -87,19 +124,26 @@
           </select>
         </div>
 
-        <div class="form-row">
-          <label for="hang">Loại Hàng</label>
-          <select id="hang">
-            <option value="D">D</option>
-            <option value="R">R</option>
-          </select>
-          <label for="mui" style="width:90px;">Múi</label>
-          <select id="mui" style="width:140px">
-            <option value="0K">0K</option>
-            <option value="0M">0M</option>
-            <option value="TA">TA</option>
-            <option value="TB">TB</option>
-          </select>
+        <div class="form-row form-row-grid">
+          <label>Phân loại</label>
+          <div class="field-grid two-col">
+            <div class="field-inline">
+              <span class="inline-label">Loại Hàng</span>
+              <select id="hang">
+                <option value="D">D</option>
+                <option value="R">R</option>
+              </select>
+            </div>
+            <div class="field-inline">
+              <span class="inline-label">Múi</span>
+              <select id="mui">
+                <option value="0K">0K</option>
+                <option value="0M">0M</option>
+                <option value="TA">TA</option>
+                <option value="TB">TB</option>
+              </select>
+            </div>
+          </div>
         </div>
 
         <div class="form-row">
@@ -134,13 +178,19 @@
       </div>
     </div>
 
-    <div class="right">
-      <div id="print-area">
-        <div id="qrcode">QR</div>
-        <div id="qtext" class="note"></div>
-      </div>
+      <aside class="right qr-preview-panel">
+        <div class="qr-preview-panel-header">
+          <h3>Xem Trước QR</h3>
+          <span>Khung in / quét nhanh</span>
+        </div>
+        <div id="print-area" class="qr-preview-card">
+          <div id="qrcode">QR</div>
+          <div id="qtext" class="note"></div>
+        </div>
+      </aside>
+
     </div>
-  </div>
+  </main>
 
   <!-- Modal Quet QR -->
   <div id="scanModal" class="modal" style="display:none;">
