@@ -327,8 +327,8 @@
                 </div>
                 <div class="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
                     <div>
-                        <label class="block text-sm opacity-80 mb-1">Chỉnh sửa STT in đầu</label>
-                        <input id="reportSttEdit" type="number" min="1" step="1" class="w-full px-4 py-2 border rounded-xl text-slate-900" placeholder="Nhập STT muốn đặt">
+                        <label class="block text-sm opacity-80 mb-1">Chỉnh sửa STT in cuối</label>
+                        <input id="reportSttEdit" type="number" min="1" step="1" class="w-full px-4 py-2 border rounded-xl text-slate-900" placeholder="Nhập STT cuối muốn đặt">
                     </div>
                     <button id="applyReportSttBtn" onclick="applyReportSttFromReport()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-sm font-medium">
                         Cập nhật STT
@@ -1262,9 +1262,9 @@
 
         function syncReportSttEditor() {
             const reportSttEdit = document.getElementById('reportSttEdit');
-            const sttDau = document.getElementById('sttDau');
-            if (!reportSttEdit || !sttDau) return;
-            reportSttEdit.value = sttDau.value || '1';
+            const sttCuoi = document.getElementById('sttCuoi');
+            if (!reportSttEdit || !sttCuoi) return;
+            reportSttEdit.value = sttCuoi.value || '1';
         }
 
         async function loadProductSTT(force = false) {
@@ -1295,16 +1295,21 @@
                 return;
             }
 
-            const sttDauNew = Math.floor(rawValue);
+            const sttCuoiNew = Math.floor(rawValue);
             const soLuong = parseInt(document.getElementById('soLuongTem').value, 10) || 1;
-            const sttCuoiNew = sttDauNew + soLuong - 1;
+            const sttDauNew = sttCuoiNew - soLuong + 1;
+
+            if (sttDauNew < 1) {
+                alert('STT cuối quá nhỏ so với số lượng tem hiện tại.');
+                return;
+            }
 
             document.getElementById('sttDau').value = sttDauNew;
             document.getElementById('sttCuoi').value = sttCuoiNew;
             saveProductSTT(sttDauNew, sttDauNew, sttCuoiNew);
             updateSttCuoi();
             syncReportSttEditor();
-            alert(`Đã cập nhật STT in đầu = ${sttDauNew}.`);
+            alert(`Đã cập nhật STT in cuối = ${sttCuoiNew}.`);
         }
 
         async function saveProductSTT(nextSTT, sttDau, sttCuoi) {
