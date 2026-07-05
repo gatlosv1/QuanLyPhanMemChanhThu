@@ -303,7 +303,7 @@
 
     function loadHistoryFromFirebase() {
       const status = document.getElementById('syncStatus');
-      status.textContent = 'Dang dong bo...';
+      status.textContent = 'Đang Đồng Bộ...';
       status.style.color = '#ffc107';
 
       historyRef.once('value', function(snapshot) {
@@ -311,7 +311,7 @@
         history = data ? Object.values(data) : [];
         history.sort(function(a,b) { return (b.id || 0) - (a.id || 0); });
         renderHistory();
-        status.textContent = 'Da dong bo';
+        status.textContent = 'Đã Đồng Bộ';
         status.style.color = '#28a745';
         setTimeout(function() { status.textContent = ''; }, 2000);
       });
@@ -348,7 +348,7 @@
         empty.style.textAlign = 'center';
         empty.style.padding = '40px';
         empty.style.color = '#888';
-        empty.textContent = 'Chua co du lieu lich su';
+        empty.textContent = 'Chưa có dữ liệu lịch sử';
         list.appendChild(empty);
         return;
       }
@@ -530,7 +530,7 @@
         },
         function() {}
       ).catch(function() {
-        alert('Khong the mo camera.\nVui long cho phep quyen Camera trong trinh duyet.');
+        alert('Không thể mở camera.\nVui Lòng cho phép mở camera.');
         document.getElementById('scanModal').style.display = 'none';
       });
     }
@@ -630,7 +630,7 @@
     document.getElementById('deleteAllBtn').addEventListener('click', function() {
       if (!can('qr.history.delete')) return alert('Ban khong co quyen!');
       if (history.length === 0) return alert('Lich su da trong!');
-      if (!confirm('Ban co chac chan muon XOA TOAN BO lich su?\nHanh dong nay KHONG THE hoan tac!')) return;
+      if (!confirm('Bạn muốn xoá toàn bộ lịch sử?\nHành động này không thể hoản tác!')) return;
 
       if (prompt('Nhap mat khau de xac nhan:') !== 'CTYCT2026') {
         return alert('Mat khau sai!');

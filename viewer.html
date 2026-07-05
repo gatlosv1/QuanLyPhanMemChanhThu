@@ -798,7 +798,7 @@
       setLabelText('labelNoi', 'Tên Thành Phẩm ');
       setLabelText('labelHang', 'Hàng');
       setLabelText('labelMui', 'Múi');
-      setLabelText('labelVitri', 'Ma QR Noi Bo');
+      setLabelText('labelVitri', 'Mã QR nội Bộ');
 
       const maLo = detail.maLo || fallbackMaLo || '-';
       document.getElementById('maLoDisplay').textContent = maLo;
@@ -1108,7 +1108,7 @@
         try {
           await startFallbackScanner(mode);
         } catch (_) {
-          alert('Khong the mo camera.\nVui long cho phep quyen camera trong trinh duyet.');
+          alert('Lỗi không thể mở camera.\nVui lòng cho phép camera.');
           closeScanModal();
         }
       });
