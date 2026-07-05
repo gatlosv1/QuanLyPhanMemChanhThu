@@ -1862,21 +1862,12 @@
         // ==================== RESET STT ====================
         function resetSTT() {
             if (!guardPermission('index.resetStt', 'Bạn không có quyền reset STT.')) return;
-            if (!runtimeConfig || !runtimeConfig.resetPassword) {
-                alert('Chức năng Reset STT đang bị khóa do chưa cấu hình mật khẩu trên server.');
-                return;
-            }
-            const password = prompt("Nhập mật khẩu để Reset STT:");
-            if (password === (runtimeConfig.resetPassword || '')) {
-                if (confirm("Reset STT về 1?")) {
-                    document.getElementById('sttDau').value = 1;
-                    document.getElementById('soLuongTem').value = 1;
-                    saveProductSTT(1, 1, 1);
-                    updateSttCuoi();
-                    alert("Đã reset STT thành công!");
-                }
-            } else if (password) {
-                alert("Mật khẩu sai!");
+            if (confirm("Reset STT về 1?")) {
+                document.getElementById('sttDau').value = 1;
+                document.getElementById('soLuongTem').value = 1;
+                saveProductSTT(1, 1, 1);
+                updateSttCuoi();
+                alert("Đã reset STT thành công!");
             }
         }
 
