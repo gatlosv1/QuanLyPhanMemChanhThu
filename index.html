@@ -447,6 +447,7 @@
         }
 
         function openLotModal() {
+            if (!guardPermission('index.selectLot', 'Bạn không có quyền chọn lot từ lịch sử.')) return;
             loadHistoryLots().then(() => {
                 renderLotList();
                 document.getElementById('lotModal').style.display = 'flex';
@@ -462,7 +463,7 @@
         let selectedProductModalId = '';
 
         function openProductModal() {
-            if (!guardPermission('index.edit', 'Bạn không có quyền chỉnh sửa dữ liệu sản phẩm.')) return;
+            if (!guardPermission('index.selectProduct', 'Bạn không có quyền chọn thành phẩm.')) return;
             renderProductModalList(products);
             const modal = document.getElementById('productModal');
             if (modal) modal.style.display = 'flex';
@@ -538,7 +539,7 @@
         }
 
         function applySelectedProduct() {
-            if (!guardPermission('index.edit', 'Bạn không có quyền chỉnh sửa dữ liệu sản phẩm.')) return;
+            if (!guardPermission('index.selectProduct', 'Bạn không có quyền chọn thành phẩm.')) return;
             const prod = products.find((item) => item.id === selectedProductModalId);
             if (!prod) {
                 alert('Vui lòng chọn một thành phẩm trong bảng.');
@@ -657,10 +658,37 @@
             return 'Dona';
         }
 
-        function buildViewerAbsoluteUrl(maLo) {
-            const url = new URL('viewer.html', window.location.href);
-            url.searchParams.set('q', maLo);
-            return url.toString();
+        function toViewerTokenDocId(token) {
+            return String(token || '')
+                .trim()
+                .toUpperCase()
+                .replace(/[^A-Z0-9_-]/g, '_')
+                .slice(0, 240);
+        }
+
+        async function createSecureViewerQrToken(maLo) {
+            const lot = String(maLo || '').trim();
+            if (!lot) throw new Error('Mã lot không hợp lệ.');
+            if (!db) throw new Error('Firebase chưa sẵn sàng.');
+
+            const token = (typeof window.createViewerQrToken === 'function')
+                ? window.createViewerQrToken(lot)
+                : `QLKS.${Date.now().toString(36).toUpperCase()}`;
+            const docId = toViewerTokenDocId(token);
+            const expiresAt = new Date(Date.now() + (365 * 24 * 60 * 60 * 1000)).toISOString();
+
+            await db.collection('viewerQrTokens').doc(docId).set({
+                token,
+                maLo: lot,
+                maLoUpper: lot.toUpperCase(),
+                createdAtClient: new Date().toISOString(),
+                createdBy: (window.getCurrentUser && window.getCurrentUser()?.username) || 'unknown',
+                expiresAtClient: expiresAt,
+                active: true,
+                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+            }, { merge: true });
+
+            return token;
         }
 
         function buildQrInfoPayload() {
@@ -707,13 +735,13 @@
                 return;
             }
 
-            const link = buildViewerAbsoluteUrl(payload.maLo);
             const docId = sanitizeDocId(payload.maLo);
 
             try {
+                const qrToken = await createSecureViewerQrToken(payload.maLo);
                 await db.collection('scanLotDetails').doc(docId).set({
                     ...payload,
-                    viewerLink: link,
+                    qrToken,
                     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
                 }, { merge: true });
 
@@ -723,12 +751,12 @@
                 if (qrRoot) {
                     qrRoot.innerHTML = '';
                     new QRCode(qrRoot, {
-                        text: link,
-                        width: 220,
-                        height: 220
+                        text: qrToken,
+                        width: 200,
+                        height: 200
                     });
                 }
-                if (linkEl) linkEl.textContent = link;
+                if (linkEl) linkEl.textContent = `Mã QR nội bộ: ${qrToken}`;
                 if (statusEl) statusEl.textContent = 'Đã ghi nhận thông tin lot và tạo QR thành công.';
             } catch (error) {
                 alert('Lỗi lưu QR ghi nhận: ' + (error.message || error));
@@ -911,7 +939,13 @@
                 return;
             }
 
-            const viewerUrl = buildViewerAbsoluteUrl(maLo);
+            let qrToken = '';
+            try {
+                qrToken = await createSecureViewerQrToken(maLo);
+            } catch (error) {
+                alert('Không thể tạo token QR bảo mật: ' + (error.message || error));
+                return;
+            }
 
             const hidden = document.createElement('div');
             hidden.style.position = 'fixed';
@@ -924,9 +958,9 @@
             let qrSrc = '';
             try {
                 new QRCode(hidden, {
-                    text: viewerUrl,
-                    width: 180,
-                    height: 180,
+                    text: qrToken,
+                    width: 150,
+                    height: 150,
                     correctLevel: QRCode.CorrectLevel.M
                 });
 
@@ -967,7 +1001,7 @@
                     html, body { width: 35mm; height: 22mm; margin: 0 !important; padding: 0 !important; }
                     body { font-family: Arial, sans-serif; background: #fff; }
                     .label { width: 35mm; height: 22mm; box-sizing: border-box; padding: 0.2mm; display: flex; align-items: center; justify-content: center; overflow: hidden; }
-                    .qr-square { width: 18mm; height: 18mm; display: block; object-fit: contain; image-rendering: pixelated; }
+                    .qr-square { width: 14mm; height: 14mm; display: block; object-fit: contain; image-rendering: pixelated; }
                 </style>
                 <div class="label">
                     <img class="qr-square" src="${qrSrc}" alt="QR ${escapeHtml(maLo)}">
@@ -1112,7 +1146,13 @@
         }
 
         function can(permissionKey) {
-            return window.hasPermission ? window.hasPermission(permissionKey) : true;
+            if (!window.hasPermission) return true;
+
+            if (permissionKey === 'index.selectLot' || permissionKey === 'index.selectProduct') {
+                return window.hasPermission(permissionKey) || window.hasPermission('index.edit');
+            }
+
+            return window.hasPermission(permissionKey);
         }
 
         function guardPermission(permissionKey, message) {
@@ -1123,6 +1163,8 @@
 
         function applyIndexPermissions() {
             const editAllowed = can('index.edit');
+            const lotAllowed = can('index.selectLot');
+            const selectProductAllowed = can('index.selectProduct');
             const importAllowed = can('index.import');
             const printAllowed = can('index.print');
             const reprintAllowed = can('index.reprint');
@@ -1145,8 +1187,8 @@
                 el.classList.toggle('cursor-not-allowed', !allowed);
             };
 
-            lockButton('openLotBtn', editAllowed);
-            lockButton('loadFromGridBtn', editAllowed);
+            lockButton('openLotBtn', lotAllowed);
+            lockButton('loadFromGridBtn', selectProductAllowed);
             lockButton('resetSttBtn', resetAllowed);
             lockButton('printQr35x22Btn', printAllowed);
             lockButton('printNewBtn', printAllowed);
@@ -1158,7 +1200,7 @@
             lockButton('exportReportExcelBtn', exportAllowed);
             lockButton('addProductBtn', editAllowed);
             lockButton('deleteProductBtn', editAllowed);
-            lockButton('applyProductSelectionBtn', editAllowed);
+            lockButton('applyProductSelectionBtn', selectProductAllowed);
 
             const importLabel = document.getElementById('importExcelModalLabel');
             const excelFile = document.getElementById('excelFileModal');
@@ -1623,7 +1665,7 @@
 
         // ==================== LOAD DỮ LIỆU TỪ BẢNG ====================
         function loadFromGrid() {
-            if (!guardPermission('index.edit', 'Bạn không có quyền chỉnh sửa dữ liệu sản phẩm.')) return;
+            if (!guardPermission('index.selectProduct', 'Bạn không có quyền chọn thành phẩm.')) return;
             openProductModal();
         }
 

@@ -221,24 +221,35 @@
         .trim();
       if (!text) return '';
 
+      const directTokenLot = typeof decodeViewerQrToken === 'function' ? decodeViewerQrToken(text) : '';
+      if (directTokenLot) {
+        return directTokenLot;
+      }
+
       if (/^https?:\/\//i.test(text)) {
         try {
           const parsed = new URL(text);
           if (parsed.origin !== window.location.origin) return '';
           if (!(parsed.pathname.endsWith('/viewer.html') || parsed.pathname === '/viewer.html')) return '';
           const q = parsed.searchParams.get('q');
-          return q ? q.trim() : '';
+          if (!q) return '';
+          const tokenLot = typeof decodeViewerQrToken === 'function' ? decodeViewerQrToken(q) : '';
+          return tokenLot || q.trim();
         } catch (error) {
           return '';
         }
       }
 
       if (text.startsWith('viewer.html?q=')) {
-        return decodeURIComponent(text.slice('viewer.html?q='.length));
+        const q = decodeURIComponent(text.slice('viewer.html?q='.length));
+        const tokenLot = typeof decodeViewerQrToken === 'function' ? decodeViewerQrToken(q) : '';
+        return tokenLot || q;
       }
 
       if (text.startsWith('q=')) {
-        return decodeURIComponent(text.slice(2));
+        const q = decodeURIComponent(text.slice(2));
+        const tokenLot = typeof decodeViewerQrToken === 'function' ? decodeViewerQrToken(q) : '';
+        return tokenLot || q;
       }
 
       return text;
@@ -787,7 +798,7 @@
       setLabelText('labelNoi', 'Thoi Gian Tao');
       setLabelText('labelHang', 'Nguon');
       setLabelText('labelMui', 'Ma Lot');
-      setLabelText('labelVitri', 'Lien Ket View');
+      setLabelText('labelVitri', 'Ma QR Noi Bo');
 
       const maLo = detail.maLo || fallbackMaLo || '-';
       document.getElementById('maLoDisplay').textContent = maLo;
@@ -802,7 +813,7 @@
         : '-';
       document.getElementById('hangDisplay').textContent = detail.source || 'index-info-qr';
       document.getElementById('muiDisplay').textContent = maLo;
-      document.getElementById('vitriDisplay').textContent = detail.viewerLink || '-';
+      document.getElementById('vitriDisplay').textContent = detail.qrToken || '-';
       return true;
     }
 
@@ -813,6 +824,40 @@
         .replace(/\s+/g, '')
         .replace(/[^0-9A-Z_-]/g, '_')
         .slice(0, 240);
+    }
+
+    function isSecureViewerToken(value) {
+      return /^QLKS\.[A-F0-9]{32}$/i.test(String(value || '').trim());
+    }
+
+    function toViewerTokenDocId(token) {
+      return String(token || '')
+        .trim()
+        .toUpperCase()
+        .replace(/[^A-Z0-9_-]/g, '_')
+        .slice(0, 240);
+    }
+
+    async function resolveSecureViewerToken(token) {
+      if (!isSecureViewerToken(token)) return '';
+
+      try {
+        const docId = toViewerTokenDocId(token);
+        const snap = await firestoreDb.collection('viewerQrTokens').doc(docId).get();
+        if (!snap.exists) return '';
+
+        const data = snap.data() || {};
+        if (data.active === false) return '';
+        if (data.expiresAtClient) {
+          const expMs = new Date(data.expiresAtClient).getTime();
+          if (Number.isFinite(expMs) && expMs > 0 && Date.now() > expMs) return '';
+        }
+
+        return String(data.maLo || '').trim();
+      } catch (error) {
+        console.error('resolveSecureViewerToken error:', error);
+        return '';
+      }
     }
 
     async function submitProductionReport(scannedCode, sourceType) {
@@ -877,8 +922,18 @@
       error.style.display = 'none';
 
       try {
-        const parsedBarcode = parseBarcodeCode(maLo);
-        const lookupKeys = [String(maLo || '').trim().toUpperCase()];
+        const rawInput = String(maLo || '').trim();
+        let resolvedMaLo = rawInput;
+
+        if (isSecureViewerToken(rawInput)) {
+          resolvedMaLo = await resolveSecureViewerToken(rawInput);
+          if (!resolvedMaLo) {
+            throw new Error('QR nội bộ không hợp lệ, đã hết hạn hoặc đã bị thu hồi.');
+          }
+        }
+
+        const parsedBarcode = parseBarcodeCode(resolvedMaLo);
+        const lookupKeys = [String(resolvedMaLo || '').trim().toUpperCase()];
         if (parsedBarcode) {
           if (parsedBarcode.hyphenCode) lookupKeys.push(parsedBarcode.hyphenCode);
           if (parsedBarcode.fullCode) lookupKeys.push(parsedBarcode.fullCode);
@@ -893,7 +948,7 @@
 
         if (item) {
           setDefaultInfoLabels();
-          document.getElementById('maLoDisplay').textContent = item.ma_lo || maLo;
+          document.getElementById('maLoDisplay').textContent = item.ma_lo || resolvedMaLo;
           document.getElementById('ngayDisplay').textContent = item.ngay_display || 'Khong co';
           document.getElementById('biensoDisplay').textContent = item.bienso && item.bienso.trim() !== '' ? item.bienso : 'Khong co';
 
@@ -917,14 +972,14 @@
           result.style.display = 'block';
         } else {
           const lotDetail = await findLotDetailFromFirestore(lookupKeys);
-          if (lotDetail && showLotDetailFromFirestore(lotDetail, maLo)) {
+          if (lotDetail && showLotDetailFromFirestore(lotDetail, resolvedMaLo)) {
             result.style.display = 'block';
           } else if (parsedBarcode) {
-            showParsedBarcodeInfo(parsedBarcode, maLo);
+            showParsedBarcodeInfo(parsedBarcode, resolvedMaLo);
             result.style.display = 'block';
           } else {
             setDefaultInfoLabels();
-            document.getElementById('maLoDisplay').textContent = maLo;
+            document.getElementById('maLoDisplay').textContent = resolvedMaLo;
             document.getElementById('ngayDisplay').textContent = 'Khong tim thay chi tiet';
             document.getElementById('biensoDisplay').textContent = '-';
             document.getElementById('khoDisplay').textContent = '-';
@@ -932,6 +987,8 @@
           }
         }
       } catch (err) {
+        const message = err && err.message ? err.message : 'Khong tim thay thong tin cho ma QR nay.';
+        error.textContent = message;
         error.style.display = 'block';
       } finally {
         loading.style.display = 'none';
@@ -1017,7 +1074,10 @@
     setDefaultInfoLabels();
 
     const urlParams = new URLSearchParams(window.location.search);
-    const maLo = urlParams.get('q');
+    const urlQ = urlParams.get('q');
+    const maLo = urlQ
+      ? ((typeof decodeViewerQrToken === 'function' ? decodeViewerQrToken(urlQ) : '') || String(urlQ).trim())
+      : '';
 
     if (maLo) loadQRInfo(maLo);
     else document.getElementById('loading').innerHTML = '<p style="color:red;">Khong co ma QR.<br>Vui long truy cap: <strong>viewer.html?q=MA_LO</strong></p>';

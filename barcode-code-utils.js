@@ -367,6 +367,81 @@
     }
   }
 
+  function encodeBase64Url(text) {
+    const input = String(text ?? '');
+    let base64 = '';
+
+    if (typeof TextEncoder !== 'undefined') {
+      const bytes = new TextEncoder().encode(input);
+      let binary = '';
+      for (let i = 0; i < bytes.length; i += 1) {
+        binary += String.fromCharCode(bytes[i]);
+      }
+      base64 = btoa(binary);
+    } else {
+      base64 = btoa(unescape(encodeURIComponent(input)));
+    }
+
+    return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+  }
+
+  function decodeBase64Url(value) {
+    const normalized = String(value ?? '').replace(/-/g, '+').replace(/_/g, '/');
+    const padded = normalized + '==='.slice((normalized.length + 3) % 4);
+    const binary = atob(padded);
+
+    if (typeof TextDecoder !== 'undefined') {
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i += 1) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+      return new TextDecoder().decode(bytes);
+    }
+
+    return decodeURIComponent(escape(binary));
+  }
+
+  function createViewerQrToken(maLo) {
+    const raw = String(maLo ?? '').trim();
+    if (!raw) {
+      throw new Error('Mã lot không được để trống khi tạo QR nội bộ.');
+    }
+
+    const bytes = new Uint8Array(16);
+    if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+      crypto.getRandomValues(bytes);
+    } else {
+      for (let i = 0; i < bytes.length; i += 1) {
+        bytes[i] = Math.floor(Math.random() * 256);
+      }
+    }
+
+    const hex = Array.from(bytes).map((n) => n.toString(16).padStart(2, '0')).join('').toUpperCase();
+    return `QLKS.${hex}`;
+  }
+
+  function decodeViewerQrToken(value) {
+    const text = String(value ?? '').trim();
+    if (!text) return '';
+
+    // New secure token format is opaque and must be resolved server-side/Firestore lookup.
+    if (/^QLKS\.[A-F0-9]{32}$/i.test(text)) {
+      return '';
+    }
+
+    const prefixed = text.match(/^QLK1\.([A-Za-z0-9_-]+)$/i);
+    const rawPayload = prefixed ? prefixed[1] : text;
+
+    try {
+      const decoded = decodeBase64Url(rawPayload);
+      const payload = JSON.parse(decoded);
+      if (!payload || payload.t !== 'lot') return '';
+      return String(payload.lot ?? '').trim();
+    } catch (_) {
+      return '';
+    }
+  }
+
   const api = {
     generateFullCode,
     generateScanCode,
@@ -377,7 +452,9 @@
     normalizeCodeInput,
     toCompactCode,
     calculateCheckDigit,
-    buildBaseCode
+    buildBaseCode,
+    createViewerQrToken,
+    decodeViewerQrToken
   };
 
   window.InternalBarcodeCode = api;
@@ -390,4 +467,6 @@
   window.normalizeCodeInput = normalizeCodeInput;
   window.toCompactCode = toCompactCode;
   window.calculateCheckDigit = calculateCheckDigit;
+  window.createViewerQrToken = createViewerQrToken;
+  window.decodeViewerQrToken = decodeViewerQrToken;
 })(window);

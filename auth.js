@@ -4,6 +4,8 @@ const pagePermissionTemplates = {
   'index.html': {
     'index.view': true,
     'index.edit': true,
+    'index.selectLot': true,
+    'index.selectProduct': true,
     'index.import': false,
     'index.print': true,
     'index.reprint': true,
