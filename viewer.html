@@ -837,24 +837,28 @@
     }
 
     async function resolveSecureViewerToken(token) {
-      if (!isSecureViewerToken(token)) return '';
+      if (!isSecureViewerToken(token)) return null;
 
       try {
         const docId = toViewerTokenDocId(token);
         const snap = await firestoreDb.collection('viewerQrTokens').doc(docId).get();
-        if (!snap.exists) return '';
+        if (!snap.exists) return null;
 
         const data = snap.data() || {};
-        if (data.active === false) return '';
+        if (data.active === false) return null;
         if (data.expiresAtClient) {
           const expMs = new Date(data.expiresAtClient).getTime();
-          if (Number.isFinite(expMs) && expMs > 0 && Date.now() > expMs) return '';
+          if (Number.isFinite(expMs) && expMs > 0 && Date.now() > expMs) return null;
         }
 
-        return String(data.maLo || '').trim();
+        return {
+          maLo: String(data.maLo || '').trim(),
+          sttIn: String(data.sttIn || '').trim(),
+          token: String(data.token || token).trim()
+        };
       } catch (error) {
         console.error('resolveSecureViewerToken error:', error);
-        return '';
+        return null;
       }
     }
 
@@ -906,8 +910,10 @@
         });
       } else {
         let maLo = '';
+        let tokenMeta = null;
         if (isSecureViewerToken(rawInput)) {
-          maLo = await resolveSecureViewerToken(rawInput);
+          tokenMeta = await resolveSecureViewerToken(rawInput);
+          maLo = tokenMeta?.maLo || '';
           if (!maLo) {
             throw new Error('QR nội bộ không hợp lệ hoặc đã hết hạn.');
           }
@@ -922,24 +928,53 @@
         const lookupKey = String(maLo || '').trim().toUpperCase();
         const lotDetail = lookupKey ? await findLotDetailFromFirestore([lookupKey]) : null;
 
-        const randomSuffix = Math.random().toString(36).slice(2, 8).toUpperCase();
-        const docId = `${toScanReportDocId(`${lookupKey}_${Date.now().toString(36).toUpperCase()}`)}_${randomSuffix}`;
+        if (tokenMeta) {
+          const docId = toScanReportDocId(String(tokenMeta.token || rawInput).toUpperCase());
+          const scanRef = firestoreDb.collection('scanReports').doc(docId);
+          const sttValue = parseInt(tokenMeta.sttIn, 10) || 0;
 
-        payload = {
-          code: (isSecureViewerToken(rawInput) ? String(rawInput).toUpperCase() : `LOT:${lookupKey}`),
-          maBTP: maLo,
-          sku: lotDetail?.tenThanhPham || '',
-          stt: 0,
-          sourceType,
-          codeType: 'qr-internal',
-          checkDigit: '',
-          ngaySanXuat: lotDetail?.ngaySX || '',
-          scannedBy: (window.getCurrentUser && window.getCurrentUser()?.username) || 'unknown',
-          scannedAtClient: now.toISOString(),
-          timestamp: firebase.firestore.FieldValue.serverTimestamp()
-        };
+          await firestoreDb.runTransaction(async (tx) => {
+            const existing = await tx.get(scanRef);
+            if (existing.exists) {
+              throw new Error('STT này đã được quét trước đó, không thể quét lại.');
+            }
 
-        await firestoreDb.collection('scanReports').doc(docId).set(payload);
+            payload = {
+              code: String(tokenMeta.token || rawInput).toUpperCase(),
+              maBTP: maLo,
+              sku: lotDetail?.tenThanhPham || '',
+              stt: sttValue,
+              sourceType,
+              codeType: 'qr-internal',
+              checkDigit: '',
+              ngaySanXuat: lotDetail?.ngaySX || '',
+              scannedBy: (window.getCurrentUser && window.getCurrentUser()?.username) || 'unknown',
+              scannedAtClient: now.toISOString(),
+              timestamp: firebase.firestore.FieldValue.serverTimestamp()
+            };
+
+            tx.set(scanRef, payload);
+          });
+        } else {
+          const randomSuffix = Math.random().toString(36).slice(2, 8).toUpperCase();
+          const docId = `${toScanReportDocId(`${lookupKey}_${Date.now().toString(36).toUpperCase()}`)}_${randomSuffix}`;
+
+          payload = {
+            code: `LOT:${lookupKey}`,
+            maBTP: maLo,
+            sku: lotDetail?.tenThanhPham || '',
+            stt: 0,
+            sourceType,
+            codeType: 'qr-internal',
+            checkDigit: '',
+            ngaySanXuat: lotDetail?.ngaySX || '',
+            scannedBy: (window.getCurrentUser && window.getCurrentUser()?.username) || 'unknown',
+            scannedAtClient: now.toISOString(),
+            timestamp: firebase.firestore.FieldValue.serverTimestamp()
+          };
+
+          await firestoreDb.collection('scanReports').doc(docId).set(payload);
+        }
       }
 
       reportSessionCount += 1;
@@ -965,7 +1000,8 @@
         let resolvedMaLo = rawInput;
 
         if (isSecureViewerToken(rawInput)) {
-          resolvedMaLo = await resolveSecureViewerToken(rawInput);
+          const tokenMeta = await resolveSecureViewerToken(rawInput);
+          resolvedMaLo = tokenMeta?.maLo || '';
           if (!resolvedMaLo) {
             throw new Error('QR nội bộ không hợp lệ, đã hết hạn hoặc đã bị thu hồi.');
           }

@@ -666,10 +666,11 @@
                 .slice(0, 240);
         }
 
-        async function createSecureViewerQrToken(maLo) {
+        async function createSecureViewerQrToken(maLo, sttIn = '') {
             const lot = String(maLo || '').trim();
             if (!lot) throw new Error('Mã lot không hợp lệ.');
             if (!db) throw new Error('Firebase chưa sẵn sàng.');
+            const stt = String(sttIn || '').trim();
 
             const token = (typeof window.createViewerQrToken === 'function')
                 ? window.createViewerQrToken(lot)
@@ -681,6 +682,8 @@
                 token,
                 maLo: lot,
                 maLoUpper: lot.toUpperCase(),
+                sttIn: stt,
+                uniquePrintKey: stt ? `${lot.toUpperCase()}_${stt}` : lot.toUpperCase(),
                 createdAtClient: new Date().toISOString(),
                 createdBy: (window.getCurrentUser && window.getCurrentUser()?.username) || 'unknown',
                 expiresAtClient: expiresAt,
@@ -742,7 +745,7 @@
             const docId = sanitizeDocId(payload.maLo);
 
             try {
-                const qrToken = await createSecureViewerQrToken(payload.maLo);
+                const qrToken = await createSecureViewerQrToken(payload.maLo, '');
                 await db.collection('scanLotDetails').doc(docId).set({
                     ...payload,
                     qrToken,
@@ -943,13 +946,9 @@
                 return;
             }
 
-            let qrToken = '';
-            try {
-                qrToken = await createSecureViewerQrToken(maLo);
-            } catch (error) {
-                alert('Không thể tạo token QR bảo mật: ' + (error.message || error));
-                return;
-            }
+            const sttDau = parseInt(document.getElementById('sttDau').value, 10) || 1;
+            const sttCuoi = parseInt(document.getElementById('sttCuoi').value, 10) || sttDau;
+            const count = Math.max(1, sttCuoi - sttDau + 1);
 
             const hidden = document.createElement('div');
             hidden.style.position = 'fixed';
@@ -959,47 +958,7 @@
             hidden.style.padding = '0';
             document.body.appendChild(hidden);
 
-            let qrSrc = '';
-            try {
-                new QRCode(hidden, {
-                    text: qrToken,
-                    width: 150,
-                    height: 150,
-                    correctLevel: QRCode.CorrectLevel.M
-                });
-
-                // qrcodejs có thể render bằng img/canvas/table tùy môi trường.
-                await new Promise((resolve) => setTimeout(resolve, 120));
-
-                const qrImg = hidden.querySelector('img');
-                const qrCanvas = hidden.querySelector('canvas');
-                const qrTable = hidden.querySelector('table');
-
-                if (qrImg && qrImg.src) {
-                    qrSrc = qrImg.src;
-                } else if (qrCanvas) {
-                    qrSrc = qrCanvas.toDataURL('image/png');
-                } else if (qrTable && typeof html2canvas === 'function') {
-                    const canvas = await html2canvas(qrTable, {
-                        backgroundColor: '#ffffff',
-                        scale: 2,
-                        logging: false,
-                        useCORS: true
-                    });
-                    qrSrc = canvas.toDataURL('image/png');
-                }
-            } catch (error) {
-                console.error('printQr35x22 failed to render QR:', error);
-            } finally {
-                hidden.remove();
-            }
-
-            if (!qrSrc) {
-                alert('Không thể tạo hình QR để in.');
-                return;
-            }
-
-            const printContent = `
+            let printContent = `
                 <style>
                     @page { size: 35mm 22mm; margin: 0 !important; }
                     html, body { width: 35mm; height: 22mm; margin: 0 !important; padding: 0 !important; }
@@ -1007,10 +966,58 @@
                     .label { width: 35mm; height: 22mm; box-sizing: border-box; padding: 0.2mm; display: flex; align-items: center; justify-content: center; overflow: hidden; }
                     .qr-square { width: 14mm; height: 14mm; display: block; object-fit: contain; image-rendering: pixelated; }
                 </style>
-                <div class="label">
-                    <img class="qr-square" src="${qrSrc}" alt="QR ${escapeHtml(maLo)}">
-                </div>
             `;
+
+            try {
+                for (let i = 0; i < count; i += 1) {
+                    const sttIn = String(sttDau + i).padStart(4, '0');
+                    const qrToken = await createSecureViewerQrToken(maLo, sttIn);
+
+                    hidden.innerHTML = '';
+                    new QRCode(hidden, {
+                        text: qrToken,
+                        width: 150,
+                        height: 150,
+                        correctLevel: QRCode.CorrectLevel.M
+                    });
+
+                    await new Promise((resolve) => setTimeout(resolve, 120));
+
+                    let qrSrc = '';
+                    const qrImg = hidden.querySelector('img');
+                    const qrCanvas = hidden.querySelector('canvas');
+                    const qrTable = hidden.querySelector('table');
+
+                    if (qrImg && qrImg.src) {
+                        qrSrc = qrImg.src;
+                    } else if (qrCanvas) {
+                        qrSrc = qrCanvas.toDataURL('image/png');
+                    } else if (qrTable && typeof html2canvas === 'function') {
+                        const canvas = await html2canvas(qrTable, {
+                            backgroundColor: '#ffffff',
+                            scale: 2,
+                            logging: false,
+                            useCORS: true
+                        });
+                        qrSrc = canvas.toDataURL('image/png');
+                    }
+
+                    if (!qrSrc) {
+                        throw new Error('Không thể tạo hình QR để in.');
+                    }
+
+                    printContent += `
+                        <div class="label">
+                            <img class="qr-square" src="${qrSrc}" alt="QR ${escapeHtml(maLo)} STT ${escapeHtml(sttIn)}">
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                alert('Không thể tạo token/QR bảo mật: ' + (error.message || error));
+                return;
+            } finally {
+                hidden.remove();
+            }
 
             const frame = document.createElement('iframe');
             frame.style.position = 'fixed';
@@ -1033,6 +1040,11 @@
             frameDoc.open();
             frameDoc.write(`<html><head><title>In QR 35x22mm</title></head><body>${printContent}</body></html>`);
             frameDoc.close();
+
+            const nextSTT = sttCuoi + 1;
+            document.getElementById('sttDau').value = nextSTT;
+            saveProductSTT(nextSTT, sttDau, sttCuoi);
+            updateSttCuoi();
         }
 
         function renderLotList(filtered = historyLots) {
