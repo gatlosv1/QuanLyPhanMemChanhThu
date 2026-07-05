@@ -728,7 +728,7 @@
       setLabelText('labelBienSo', 'Biển Số Xe');
       setLabelText('labelKho', 'Kho');
       setLabelText('labelTTXe', 'TT Xe');
-      setLabelText('labelTongKL', 'Tổng Khối Lượng');
+      setLabelText('labelTongKL', 'Số Quy cách');
       setLabelText('labelNCC', 'Nha Cung Cap');
       setLabelText('labelNoi', 'Noi Xuat San');
       setLabelText('labelHang', 'Hang');
@@ -789,15 +789,15 @@
     function showLotDetailFromFirestore(detail, fallbackMaLo) {
       if (!detail) return false;
 
-      setLabelText('labelNgay', 'Ngay SX');
-      setLabelText('labelBienSo', 'Ngay DG');
-      setLabelText('labelKho', 'Ma Nha Cung Cap');
-      setLabelText('labelTTXe', 'So Xe');
-      setLabelText('labelTongKL', 'So Quy Cach');
-      setLabelText('labelNCC', 'Nhom San Pham');
-      setLabelText('labelNoi', 'Ten Thanh Pham');
-      setLabelText('labelHang', 'Nguon');
-      setLabelText('labelMui', 'Quy Cach');
+      setLabelText('labelNgay', 'Ngày SX');
+      setLabelText('labelBienSo', 'Ngày DG');
+      setLabelText('labelKho', 'Mã NCC');
+      setLabelText('labelTTXe', 'Số Xe');
+      setLabelText('labelTongKL', 'Số Quy cách');
+      setLabelText('labelNCC', 'Nhóm thành phẩm');
+      setLabelText('labelNoi', 'Tên Thành Phẩm ');
+      setLabelText('labelHang', 'Hàng');
+      setLabelText('labelMui', 'Múi');
       setLabelText('labelVitri', 'Ma QR Noi Bo');
 
       const maLo = detail.maLo || fallbackMaLo || '-';
@@ -999,7 +999,7 @@
 
           document.getElementById('khoDisplay').textContent = khoList.length ? khoList.join(' - ') : 'Khong co';
 
-          document.getElementById('tongklDisplay').textContent = item.tongkl ? item.tongkl + ' kg' : 'Khong co';
+          document.getElementById('tongklDisplay').textContent = item.quyCach || item.quycach || item.soQuyCach || item.so_quy_cach || 'Khong co';
           document.getElementById('ttxeDisplay').textContent = item.ttxe || '-';
           document.getElementById('nccDisplay').textContent = item.ncc || '-';
           document.getElementById('noiDisplay').textContent = item.noi || '-';
