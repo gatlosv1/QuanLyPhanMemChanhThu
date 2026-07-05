@@ -48,8 +48,8 @@
 
       <div style="text-align:center; margin-top:20px; display:flex; gap:10px; flex-wrap:wrap; justify-content:center;">
         <button class="scan-btn" onclick="startScanForMode('qr-check')">Quet QR de Check</button>
-        <button class="scan-btn" onclick="startScanForMode('barcode-check')">Quet Ma Vach</button>
-        <button class="scan-btn" onclick="startScanForMode('report')">Quet Nhap Bao Cao San Luong</button>
+        <button class="scan-btn" type="button" disabled style="opacity:0.55; cursor:not-allowed;">Quet Ma Vach <span style="color:#dc2626; font-weight:700;">(Bao tri)</span></button>
+        <button class="scan-btn" onclick="startScanForMode('report')">Quet QR</button>
       </div>
 
       <div style="margin-top:24px; border:1px solid #e5e7eb; border-radius:12px; padding:14px; background:#f8fafc;">
@@ -286,7 +286,7 @@
     }
 
     function getDetectorFormats(mode) {
-      if (mode === 'qr-check') {
+      if (mode === 'qr-check' || mode === 'report') {
         return ['qr_code'];
       }
       return ['code_128', 'code_39', 'ean_13', 'ean_8', 'upc_a', 'upc_e', 'qr_code'];
@@ -406,7 +406,7 @@
     }
 
     function getNormalizedByMode(scannedValue, mode) {
-      if (mode === 'qr-check') return String(scannedValue || '').trim();
+      if (mode === 'qr-check' || mode === 'report') return String(scannedValue || '').trim();
       return normalizeBarcodeCandidate(scannedValue);
     }
 
@@ -446,12 +446,12 @@
       lastReportScanAt = Date.now();
 
       try {
-        await submitProductionReport(normalized, scannerEngine === 'native' ? 'barcode-native' : 'barcode-fallback');
+        await submitProductionReport(normalized, scannerEngine === 'native' ? 'qr-native' : 'qr-fallback');
         updateScanDebug(rawText, normalized, mode, 'reported-success');
         loadQRInfo(normalized);
       } catch (error) {
         updateScanDebug(rawText, normalized, mode, `report-failed: ${error.message}`);
-        setScanResultMessage('Khong ghi nhan duoc bao cao: ' + error.message, '#b91c1c');
+        setScanResultMessage('Không ghi nhận được : ' + error.message, '#b91c1c');
       }
     }
 
@@ -462,7 +462,7 @@
 
       if (!normalized) {
         updateScanDebug(decodedText, '-', mode, 'empty-after-normalize');
-        setScanResultMessage('Da quet, nhung du lieu khong hop le.', '#b91c1c');
+        setScanResultMessage('Dữ liệu không hợp lệ.', '#b91c1c');
         stableCandidate = '';
         stableCount = 0;
         return;
@@ -646,7 +646,7 @@
 
     function getFallbackFormats(mode) {
       if (typeof Html5QrcodeSupportedFormats === 'undefined') return null;
-      if (mode === 'qr-check') return [Html5QrcodeSupportedFormats.QR_CODE];
+      if (mode === 'qr-check' || mode === 'report') return [Html5QrcodeSupportedFormats.QR_CODE];
       return [
         Html5QrcodeSupportedFormats.QR_CODE,
         Html5QrcodeSupportedFormats.CODE_128,
@@ -671,7 +671,7 @@
       html5QrCode = new Html5Qrcode('reader');
 
       const scanConfig = {
-        fps: mode === 'qr-check' ? 10 : 8,
+        fps: (mode === 'qr-check' || mode === 'report') ? 10 : 8,
         qrbox: getScanBoxConfig(mode),
         aspectRatio: 1.333334,
         experimentalFeatures: { useBarCodeDetectorIfSupported: true }
@@ -724,11 +724,11 @@
     }
 
     function setDefaultInfoLabels() {
-      setLabelText('labelNgay', 'Ngay Nhap');
-      setLabelText('labelBienSo', 'Bien So Xe');
+      setLabelText('labelNgay', 'Ngày Nhập');
+      setLabelText('labelBienSo', 'Biển Số Xe');
       setLabelText('labelKho', 'Kho');
       setLabelText('labelTTXe', 'TT Xe');
-      setLabelText('labelTongKL', 'Tong Khoi Luong');
+      setLabelText('labelTongKL', 'Tổng Khối Lượng');
       setLabelText('labelNCC', 'Nha Cung Cap');
       setLabelText('labelNoi', 'Noi Xuat San');
       setLabelText('labelHang', 'Hang');
@@ -789,30 +789,28 @@
     function showLotDetailFromFirestore(detail, fallbackMaLo) {
       if (!detail) return false;
 
-      setLabelText('labelNgay', 'Ten Thanh Pham');
-      setLabelText('labelBienSo', 'Quy Cach');
+      setLabelText('labelNgay', 'Ngay SX');
+      setLabelText('labelBienSo', 'Ngay DG');
       setLabelText('labelKho', 'Ma Nha Cung Cap');
       setLabelText('labelTTXe', 'So Xe');
-      setLabelText('labelTongKL', 'Vung Nguyen Lieu');
+      setLabelText('labelTongKL', 'So Quy Cach');
       setLabelText('labelNCC', 'Nhom San Pham');
-      setLabelText('labelNoi', 'Thoi Gian Tao');
+      setLabelText('labelNoi', 'Ten Thanh Pham');
       setLabelText('labelHang', 'Nguon');
-      setLabelText('labelMui', 'Ma Lot');
+      setLabelText('labelMui', 'Quy Cach');
       setLabelText('labelVitri', 'Ma QR Noi Bo');
 
       const maLo = detail.maLo || fallbackMaLo || '-';
       document.getElementById('maLoDisplay').textContent = maLo;
-      document.getElementById('ngayDisplay').textContent = detail.tenThanhPham || '-';
-      document.getElementById('biensoDisplay').textContent = detail.quyCach || '-';
+      document.getElementById('ngayDisplay').textContent = detail.ngaySX || '-';
+      document.getElementById('biensoDisplay').textContent = detail.ngayDG || '-';
       document.getElementById('khoDisplay').textContent = detail.maNhaCungCap || '-';
       document.getElementById('ttxeDisplay').textContent = detail.soXe || '-';
-      document.getElementById('tongklDisplay').textContent = detail.vungNguyenLieu || '-';
+      document.getElementById('tongklDisplay').textContent = detail.quyCach || '-';
       document.getElementById('nccDisplay').textContent = detail.nhomSanPham || '-';
-      document.getElementById('noiDisplay').textContent = detail.createdAtClient
-        ? new Date(detail.createdAtClient).toLocaleString('vi-VN')
-        : '-';
+      document.getElementById('noiDisplay').textContent = detail.tenThanhPham || '-';
       document.getElementById('hangDisplay').textContent = detail.source || 'index-info-qr';
-      document.getElementById('muiDisplay').textContent = maLo;
+      document.getElementById('muiDisplay').textContent = detail.quyCach || '-';
       document.getElementById('vitriDisplay').textContent = detail.qrToken || '-';
       return true;
     }
@@ -863,52 +861,93 @@
     async function submitProductionReport(scannedCode, sourceType) {
       if (!scannedCode) return;
 
-      const normalizedInput = normalizeBarcodeCandidate(scannedCode);
-      const parsed = parseBarcodeCode(normalizedInput) || parseLegacyBarcodeCode(normalizedInput);
-      if (!parsed) {
-        throw new Error('Mã quét không hợp lệ. Hỗ trợ mã nội bộ và mã legacy 12-24 ký tự.');
-      }
-
+      const rawInput = String(scannedCode || '').trim();
       const now = new Date();
-      let ngaySanXuat = now;
-      if (/^\d{6}$/.test(parsed.ngayCode || '')) {
-        const yyyy = 2000 + parseInt(parsed.ngayCode.slice(0, 2), 10);
-        const mm = parseInt(parsed.ngayCode.slice(2, 4), 10) - 1;
-        const dd = parseInt(parsed.ngayCode.slice(4, 6), 10);
-        ngaySanXuat = new Date(yyyy, mm, dd);
-      }
 
-      const uniqueCode = String(parsed.fullCode || parsed.hyphenCode || normalizedInput).toUpperCase();
-      const docId = toScanReportDocId(uniqueCode);
-      const scanRef = firestoreDb.collection('scanReports').doc(docId);
+      const normalizedInput = normalizeBarcodeCandidate(rawInput);
+      const parsed = parseBarcodeCode(normalizedInput) || parseLegacyBarcodeCode(normalizedInput);
 
-      await firestoreDb.runTransaction(async (tx) => {
-        const existing = await tx.get(scanRef);
-        if (existing.exists) {
-          throw new Error('Tem nay da duoc quet truoc do, khong the quet lan 2.');
+      let payload = null;
+
+      if (parsed) {
+        let ngaySanXuat = now;
+        if (/^\d{6}$/.test(parsed.ngayCode || '')) {
+          const yyyy = 2000 + parseInt(parsed.ngayCode.slice(0, 2), 10);
+          const mm = parseInt(parsed.ngayCode.slice(2, 4), 10) - 1;
+          const dd = parseInt(parsed.ngayCode.slice(4, 6), 10);
+          ngaySanXuat = new Date(yyyy, mm, dd);
         }
 
-        tx.set(scanRef, {
-          code: uniqueCode,
-          maBTP: parsed.fullCode,
-          sku: parsed.loaiSP,
-          stt: parsed.stt,
+        const uniqueCode = String(parsed.fullCode || parsed.hyphenCode || normalizedInput).toUpperCase();
+        const docId = toScanReportDocId(uniqueCode);
+        const scanRef = firestoreDb.collection('scanReports').doc(docId);
+
+        await firestoreDb.runTransaction(async (tx) => {
+          const existing = await tx.get(scanRef);
+          if (existing.exists) {
+            throw new Error('Tem nay da duoc quet truoc do, khong the quet lan 2.');
+          }
+
+          payload = {
+            code: uniqueCode,
+            maBTP: parsed.fullCode,
+            sku: parsed.loaiSP,
+            stt: parsed.stt,
+            sourceType,
+            codeType: parsed.codeType || 'internal',
+            checkDigit: parsed.checkDigit,
+            ngaySanXuat: ngaySanXuat.toISOString().slice(0, 10),
+            scannedBy: (window.getCurrentUser && window.getCurrentUser()?.username) || 'unknown',
+            scannedAtClient: now.toISOString(),
+            timestamp: firebase.firestore.FieldValue.serverTimestamp()
+          };
+
+          tx.set(scanRef, payload);
+        });
+      } else {
+        let maLo = '';
+        if (isSecureViewerToken(rawInput)) {
+          maLo = await resolveSecureViewerToken(rawInput);
+          if (!maLo) {
+            throw new Error('QR nội bộ không hợp lệ hoặc đã hết hạn.');
+          }
+        } else if (typeof decodeViewerQrToken === 'function') {
+          maLo = decodeViewerQrToken(rawInput);
+        }
+
+        if (!maLo) {
+          maLo = rawInput;
+        }
+
+        const lookupKey = String(maLo || '').trim().toUpperCase();
+        const lotDetail = lookupKey ? await findLotDetailFromFirestore([lookupKey]) : null;
+
+        const randomSuffix = Math.random().toString(36).slice(2, 8).toUpperCase();
+        const docId = `${toScanReportDocId(`${lookupKey}_${Date.now().toString(36).toUpperCase()}`)}_${randomSuffix}`;
+
+        payload = {
+          code: (isSecureViewerToken(rawInput) ? String(rawInput).toUpperCase() : `LOT:${lookupKey}`),
+          maBTP: maLo,
+          sku: lotDetail?.tenThanhPham || '',
+          stt: 0,
           sourceType,
-          codeType: parsed.codeType || 'internal',
-          checkDigit: parsed.checkDigit,
-          ngaySanXuat: ngaySanXuat.toISOString().slice(0, 10),
+          codeType: 'qr-internal',
+          checkDigit: '',
+          ngaySanXuat: lotDetail?.ngaySX || '',
           scannedBy: (window.getCurrentUser && window.getCurrentUser()?.username) || 'unknown',
           scannedAtClient: now.toISOString(),
           timestamp: firebase.firestore.FieldValue.serverTimestamp()
-        });
-      });
+        };
+
+        await firestoreDb.collection('scanReports').doc(docId).set(payload);
+      }
 
       reportSessionCount += 1;
       document.getElementById('reportSessionCount').textContent = String(reportSessionCount);
-      document.getElementById('reportLastCode').textContent = uniqueCode;
+      document.getElementById('reportLastCode').textContent = payload?.code || '-';
       document.getElementById('reportLastTime').textContent = now.toLocaleString('vi-VN');
-      const codeLabel = parsed.codeType === 'legacy' ? 'LEGACY' : 'NOI BO';
-      const sttText = parsed.stt ? `${parsed.stt}` : 'N/A';
+      const codeLabel = payload?.codeType === 'legacy' ? 'LEGACY' : (payload?.codeType === 'qr-internal' ? 'QR' : 'NOI BO');
+      const sttText = payload?.stt ? `${payload.stt}` : 'N/A';
       setScanResultMessage(`Da ghi nhan TEM DAT +1 (${codeLabel}), STT IN = ${sttText}`, '#047857');
     }
 
@@ -996,12 +1035,16 @@
     }
 
     function startScanForMode(mode) {
+      if (mode === 'barcode-check') {
+        setScanResultMessage('Quet ma vach dang bao tri.', '#dc2626');
+        return;
+      }
       currentScanMode = mode;
       resetStableScanState();
       const titleMap = {
         'qr-check': 'Quet QR de Check',
         'barcode-check': 'Quet Ma Vach de Check',
-        report: 'Quet Nhap Bao Cao San Luong'
+        report: 'Quet QR'
       };
       document.getElementById('scanTitle').textContent = titleMap[mode] || 'Quét mã';
       document.getElementById('scanModal').style.display = 'flex';

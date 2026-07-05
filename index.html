@@ -700,12 +700,16 @@
             const maNhaCungCap = String(document.getElementById('maNCC').value || '').trim();
             const soXe = String(document.getElementById('maXe').value || '').trim();
             const vungCode = String(document.getElementById('vungNguyenLieu').value || 'MT').trim();
+            const ngaySX = String(document.getElementById('ngaySX').value || '').trim();
+            const ngayDG = String(document.getElementById('ngayDG').value || ngaySX).trim();
             const payload = {
                 maLo,
                 maLoUpper: maLo.toUpperCase(),
                 tenThanhPham: String(document.getElementById('tenTP').value || '').trim() || 'Chưa nhập tên thành phẩm',
                 maNhaCungCap: maNhaCungCap || 'Chưa nhập',
                 soXe: soXe || 'Chưa nhập',
+                ngaySX: ngaySX || 'Chưa nhập',
+                ngayDG: ngayDG || 'Chưa nhập',
                 vungNguyenLieu: getVungNguyenLieuFullName(vungCode),
                 quyCach: String(document.getElementById('quyCach').value || '').trim() || 'Chưa nhập',
                 nhomSanPham: getNhomSanPhamName(),
