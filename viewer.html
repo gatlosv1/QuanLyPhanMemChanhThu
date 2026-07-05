@@ -728,7 +728,7 @@
       setLabelText('labelBienSo', 'Biển Số Xe');
       setLabelText('labelKho', 'Kho');
       setLabelText('labelTTXe', 'TT Xe');
-      setLabelText('labelTongKL', 'Số Quy cách');
+      setLabelText('labelTongKL', 'Số Quy Cách');
       setLabelText('labelNCC', 'Nha Cung Cap');
       setLabelText('labelNoi', 'Noi Xuat San');
       setLabelText('labelHang', 'Hang');
@@ -984,6 +984,7 @@
           const lot = String(h.ma_lo || '').trim().toUpperCase();
           return lookupKeys.includes(lot);
         }) : null;
+        const lotDetail = await findLotDetailFromFirestore(lookupKeys);
 
         if (item) {
           setDefaultInfoLabels();
@@ -999,7 +1000,7 @@
 
           document.getElementById('khoDisplay').textContent = khoList.length ? khoList.join(' - ') : 'Khong co';
 
-          document.getElementById('tongklDisplay').textContent = item.quyCach || item.quycach || item.soQuyCach || item.so_quy_cach || 'Khong co';
+          document.getElementById('tongklDisplay').textContent = lotDetail?.quyCach || item.quyCach || item.quycach || item.soQuyCach || item.so_quy_cach || 'Khong co';
           document.getElementById('ttxeDisplay').textContent = item.ttxe || '-';
           document.getElementById('nccDisplay').textContent = item.ncc || '-';
           document.getElementById('noiDisplay').textContent = item.noi || '-';
@@ -1010,7 +1011,6 @@
 
           result.style.display = 'block';
         } else {
-          const lotDetail = await findLotDetailFromFirestore(lookupKeys);
           if (lotDetail && showLotDetailFromFirestore(lotDetail, resolvedMaLo)) {
             result.style.display = 'block';
           } else if (parsedBarcode) {
