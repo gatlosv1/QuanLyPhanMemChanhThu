@@ -325,6 +325,15 @@
                         <div id="lastUpdate" class="font-mono text-lg">Chưa có dữ liệu</div>
                     </div>
                 </div>
+                <div class="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+                    <div>
+                        <label class="block text-sm opacity-80 mb-1">Chỉnh sửa STT in đầu</label>
+                        <input id="reportSttEdit" type="number" min="1" step="1" class="w-full px-4 py-2 border rounded-xl text-slate-900" placeholder="Nhập STT muốn đặt">
+                    </div>
+                    <button id="applyReportSttBtn" onclick="applyReportSttFromReport()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl text-sm font-medium">
+                        Cập nhật STT
+                    </button>
+                </div>
             </div>
 
             <div class="bg-white rounded-2xl shadow p-6">
@@ -1217,6 +1226,14 @@
             lockButton('addProductBtn', editAllowed);
             lockButton('deleteProductBtn', editAllowed);
             lockButton('applyProductSelectionBtn', selectProductAllowed);
+            lockButton('applyReportSttBtn', resetAllowed);
+
+            const reportSttEdit = document.getElementById('reportSttEdit');
+            if (reportSttEdit) {
+                reportSttEdit.disabled = !resetAllowed;
+                reportSttEdit.classList.toggle('opacity-60', !resetAllowed);
+                reportSttEdit.classList.toggle('cursor-not-allowed', !resetAllowed);
+            }
 
             const importLabel = document.getElementById('importExcelModalLabel');
             const excelFile = document.getElementById('excelFileModal');
@@ -1243,6 +1260,13 @@
             productSttLoadTimer = setTimeout(() => loadProductSTT(force), 250);
         }
 
+        function syncReportSttEditor() {
+            const reportSttEdit = document.getElementById('reportSttEdit');
+            const sttDau = document.getElementById('sttDau');
+            if (!reportSttEdit || !sttDau) return;
+            reportSttEdit.value = sttDau.value || '1';
+        }
+
         async function loadProductSTT(force = false) {
             if (!db) return;
             const productKey = getProductKey();
@@ -1255,9 +1279,32 @@
                 const nextStart = saved && Number.isFinite(saved.nextSTT) ? saved.nextSTT : 1;
                 document.getElementById('sttDau').value = nextStart;
                 updateSttCuoi();
+                syncReportSttEditor();
             } catch (e) {
                 console.error(e);
             }
+        }
+
+        function applyReportSttFromReport() {
+            if (!guardPermission('index.resetStt', 'Bạn không có quyền chỉnh sửa STT.')) return;
+
+            const input = document.getElementById('reportSttEdit');
+            const rawValue = parseInt(String(input?.value || '').trim(), 10);
+            if (!Number.isFinite(rawValue) || rawValue < 1) {
+                alert('Vui lòng nhập STT hợp lệ (>= 1).');
+                return;
+            }
+
+            const sttDauNew = Math.floor(rawValue);
+            const soLuong = parseInt(document.getElementById('soLuongTem').value, 10) || 1;
+            const sttCuoiNew = sttDauNew + soLuong - 1;
+
+            document.getElementById('sttDau').value = sttDauNew;
+            document.getElementById('sttCuoi').value = sttCuoiNew;
+            saveProductSTT(sttDauNew, sttDauNew, sttCuoiNew);
+            updateSttCuoi();
+            syncReportSttEditor();
+            alert(`Đã cập nhật STT in đầu = ${sttDauNew}.`);
         }
 
         async function saveProductSTT(nextSTT, sttDau, sttCuoi) {
@@ -1809,6 +1856,7 @@
             const soLuong = parseInt(document.getElementById('soLuongTem').value) || 1;
             document.getElementById('sttCuoi').value = sttDau + soLuong - 1;
             updateBarcodePreview();
+            syncReportSttEditor();
         }
 
         // ==================== RESET STT ====================
