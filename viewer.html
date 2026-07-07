@@ -100,9 +100,34 @@
     let firestoreDb = null;
     let historyRef = null;
 
+    const FIREBASE_INIT_TIMEOUT_MS = 7000;
+    const DATA_READ_TIMEOUT_MS = 10000;
+
+    function withTimeout(promise, timeoutMs, timeoutMessage) {
+      return Promise.race([
+        promise,
+        new Promise(function(_, reject) {
+          setTimeout(function() {
+            reject(new Error(timeoutMessage || 'Timeout'));
+          }, timeoutMs);
+        })
+      ]);
+    }
+
+    function ensureFirebaseReady() {
+      return withTimeout(firebaseReady, FIREBASE_INIT_TIMEOUT_MS, 'Khoi tao Firebase qua lau');
+    }
+
     const firebaseReady = (async function initializeFirebase() {
-      const runtimeConfig = window.getRuntimeConfig ? await window.getRuntimeConfig() : null;
+      const runtimeConfig = window.getRuntimeConfig
+        ? await withTimeout(window.getRuntimeConfig(), FIREBASE_INIT_TIMEOUT_MS, 'Lay cau hinh Firebase qua lau')
+        : null;
       const firebaseConfig = runtimeConfig || window.FIREBASE_CONFIG || {};
+
+      if (!firebaseConfig || !firebaseConfig.projectId || !firebaseConfig.apiKey) {
+        throw new Error('Thieu cau hinh Firebase (projectId/apiKey).');
+      }
+
       if (!firebase.apps.length) {
         firebase.initializeApp(firebaseConfig);
       }
@@ -767,7 +792,7 @@
     }
 
     async function findLotDetailFromFirestore(lookupKeys) {
-      await firebaseReady;
+      await ensureFirebaseReady();
       for (const key of lookupKeys) {
         try {
           const querySnapshot = await firestoreDb
@@ -837,7 +862,7 @@
     }
 
     async function resolveSecureViewerToken(token) {
-      await firebaseReady;
+      await ensureFirebaseReady();
       if (!isSecureViewerToken(token)) return null;
 
       try {
@@ -864,7 +889,7 @@
     }
 
     async function submitProductionReport(scannedCode, sourceType) {
-      await firebaseReady;
+      await ensureFirebaseReady();
       if (!scannedCode) return;
 
       const rawInput = String(scannedCode || '').trim();
@@ -989,7 +1014,7 @@
     }
 
     async function loadQRInfo(maLo) {
-      await firebaseReady;
+      await ensureFirebaseReady();
       const loading = document.getElementById('loading');
       const result = document.getElementById('result');
       const error = document.getElementById('error');
@@ -1017,7 +1042,11 @@
           if (parsedBarcode.fullCode) lookupKeys.push(parsedBarcode.fullCode);
         }
 
-        const snapshot = await historyRef.once('value');
+        const snapshot = await withTimeout(
+          historyRef.once('value'),
+          DATA_READ_TIMEOUT_MS,
+          'Doc lich su QR qua lau'
+        );
         const data = snapshot.val();
         let item = data ? Object.values(data).find(function(h) {
           const lot = String(h.ma_lo || '').trim().toUpperCase();

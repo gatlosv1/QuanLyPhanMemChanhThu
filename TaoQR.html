@@ -212,6 +212,7 @@
 
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -219,15 +220,116 @@
   <script>
     let db = null;
     let historyRef = null;
+    let firestoreDb = null;
+
+    const FIREBASE_INIT_TIMEOUT_MS = 7000;
+    const HISTORY_SYNC_TIMEOUT_MS = 10000;
+
+    function withTimeout(promise, timeoutMs, timeoutMessage) {
+      return Promise.race([
+        promise,
+        new Promise(function(_, reject) {
+          setTimeout(function() {
+            reject(new Error(timeoutMessage || 'Timeout'));
+          }, timeoutMs);
+        })
+      ]);
+    }
+
+    function updateSyncStatus(message, color) {
+      const status = document.getElementById('syncStatus');
+      if (!status) return;
+      status.textContent = message || '';
+      if (color) status.style.color = color;
+    }
+
+    function sanitizeDocId(value) {
+      return String(value || '')
+        .trim()
+        .toUpperCase()
+        .replace(/[^A-Z0-9_-]/g, '_')
+        .slice(0, 240);
+    }
+
+    function toLotDetailPayload(item) {
+      const maLo = String(item.ma_lo || '').trim();
+      const tongKlRaw = String(item.tongkl || '').trim();
+      const quyCach = tongKlRaw ? (tongKlRaw + ' kg') : '';
+
+      return {
+        maLo: maLo,
+        maLoUpper: maLo.toUpperCase(),
+        tenThanhPham: item.tenTP || ('Lô ' + maLo),
+        maNhaCungCap: item.ncc || '',
+        soXe: item.bienso || item.ttxe || '',
+        ngaySX: item.ngay_display || '',
+        ngayDG: item.ngay_display || '',
+        vungNguyenLieu: item.noi || '',
+        quyCach: quyCach,
+        nhomSanPham: item.hang || '',
+        tongKL: tongKlRaw,
+        kho1: item.kho1 || '',
+        kho2: item.kho2 || '',
+        kho3: item.kho3 || '',
+        kho4: item.kho4 || '',
+        source: 'taoqr-sync',
+        updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+        updatedAtClient: new Date().toISOString()
+      };
+    }
+
+    function syncOneHistoryItemToFirestore(item) {
+      if (!firestoreDb || !item || !item.ma_lo) return Promise.resolve();
+      const docId = sanitizeDocId(item.ma_lo);
+      if (!docId) return Promise.resolve();
+      const payload = toLotDetailPayload(item);
+      return firestoreDb.collection('scanLotDetails').doc(docId).set(payload, { merge: true });
+    }
+
+    function syncHistoryListToFirestore(items) {
+      if (!firestoreDb || !Array.isArray(items) || items.length === 0) {
+        return Promise.resolve();
+      }
+
+      const chunkSize = 200;
+      let index = 0;
+
+      function commitNextChunk() {
+        if (index >= items.length) return Promise.resolve();
+        const chunk = items.slice(index, index + chunkSize);
+        index += chunkSize;
+
+        const batch = firestoreDb.batch();
+        chunk.forEach(function(item) {
+          if (!item || !item.ma_lo) return;
+          const docId = sanitizeDocId(item.ma_lo);
+          if (!docId) return;
+          const ref = firestoreDb.collection('scanLotDetails').doc(docId);
+          batch.set(ref, toLotDetailPayload(item), { merge: true });
+        });
+
+        return batch.commit().then(commitNextChunk);
+      }
+
+      return commitNextChunk();
+    }
 
     const firebaseReady = (async function initializeFirebase() {
-      const runtimeConfig = window.getRuntimeConfig ? await window.getRuntimeConfig() : null;
+      const runtimeConfig = window.getRuntimeConfig
+        ? await withTimeout(window.getRuntimeConfig(), FIREBASE_INIT_TIMEOUT_MS, 'Lay cau hinh Firebase qua lau')
+        : null;
       const firebaseConfig = runtimeConfig || window.FIREBASE_CONFIG || {};
+
+      if (!firebaseConfig || !firebaseConfig.projectId || !firebaseConfig.apiKey) {
+        throw new Error('Thieu cau hinh Firebase (projectId/apiKey).');
+      }
+
       if (!firebase.apps.length) {
         firebase.initializeApp(firebaseConfig);
       }
       db = firebase.app().database();
       historyRef = db.ref('qrHistory');
+      firestoreDb = firebase.app().firestore();
     })();
 
     let history = [];
@@ -300,23 +402,21 @@
     }
 
     function loadHistoryFromFirebase() {
-      const status = document.getElementById('syncStatus');
-      status.textContent = 'Đang Đồng Bộ...';
-      status.style.color = '#ffc107';
+      updateSyncStatus('Đang Đồng Bộ...', '#ffc107');
 
-      firebaseReady.then(function() {
-        return historyRef.once('value');
+      withTimeout(firebaseReady, FIREBASE_INIT_TIMEOUT_MS, 'Khoi tao Firebase qua lau').then(function() {
+        return withTimeout(historyRef.once('value'), HISTORY_SYNC_TIMEOUT_MS, 'Doc lich su qua lau');
       }).then(function(snapshot) {
         const data = snapshot.val();
         history = data ? Object.values(data) : [];
         history.sort(function(a,b) { return (b.id || 0) - (a.id || 0); });
-        renderHistory();
-        status.textContent = 'Đã Đồng Bộ';
-        status.style.color = '#28a745';
-        setTimeout(function() { status.textContent = ''; }, 2000);
+        return syncHistoryListToFirestore(history).then(function() {
+          renderHistory();
+          updateSyncStatus('Đã Đồng Bộ ' + history.length + ' bản ghi', '#28a745');
+          setTimeout(function() { updateSyncStatus('', ''); }, 2200);
+        });
       }).catch(function(err) {
-        status.textContent = 'Lỗi Đồng Bộ';
-        status.style.color = '#dc2626';
+        updateSyncStatus('Lỗi Đồng Bộ', '#dc2626');
         console.error('loadHistoryFromFirebase error:', err);
       });
     }
@@ -324,7 +424,9 @@
     function saveToHistory(data) {
       const newEntry = Object.assign({}, data, { timestamp: new Date().toLocaleString('vi-VN'), id: Date.now() });
       firebaseReady.then(function() {
-        return historyRef.push(newEntry);
+        return historyRef.push(newEntry).then(function() {
+          return syncOneHistoryItemToFirestore(newEntry);
+        });
       }).then(function() {
         loadHistoryFromFirebase();
       }).catch(function(err) {
@@ -585,8 +687,10 @@
               firebaseReady.then(function() {
                 return Promise.all(imported.map(function(item) { return historyRef.push(item); }));
               }).then(function() {
-                loadHistoryFromFirebase();
-                alert('Nhap du lieu thanh cong!');
+                return syncHistoryListToFirestore(imported).then(function() {
+                  loadHistoryFromFirebase();
+                  alert('Nhap du lieu thanh cong!');
+                });
               }).catch(function(err) {
                 alert('Loi nhap du lieu: ' + err.message);
               });
@@ -668,9 +772,10 @@
     document.getElementById('clearBtn').addEventListener('click', function() { location.reload(); });
 
     applyQrPermissions();
-    firebaseReady.then(function() {
+    withTimeout(firebaseReady, FIREBASE_INIT_TIMEOUT_MS, 'Khoi tao Firebase qua lau').then(function() {
       loadHistoryFromFirebase();
     }).catch(function(err) {
+      updateSyncStatus('Lỗi Đồng Bộ', '#dc2626');
       console.error('Firebase init error:', err);
     });
   </script>
