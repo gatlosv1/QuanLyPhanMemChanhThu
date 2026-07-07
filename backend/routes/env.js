@@ -1,9 +1,8 @@
-// Runtime public config for static hosting (GitHub Pages).
-// These values are public Firebase client settings used by the browser app.
-window.__ENV__ = {
+// Fallback only: real runtime values should come from /env.js served by backend.
+window.__ENV__ = window.__ENV__ || {
   FIREBASE_API_KEY: "AIzaSyAG-0znzoNCqe_ergYn4NyMdeqACSWiiUE",
   FIREBASE_AUTH_DOMAIN: "quanlychanhthu.firebaseapp.com",
-  FIREBASE_DATABASE_URL: "https://quanlychanhthu-default-rtdb.firebaseio.com",
+  FIREBASE_DATABASE_URL: "https://quanlychanhthu-default-rtdb.asia-southeast1.firebasedatabase.app",
   FIREBASE_PROJECT_ID: "quanlychanhthu",
   FIREBASE_STORAGE_BUCKET: "quanlychanhthu.firebasestorage.app",
   FIREBASE_MESSAGING_SENDER_ID: "629444573072",

@@ -84,6 +84,7 @@
     </style>
 </head>
 <body class="min-h-screen bg-slate-50 text-slate-800">
+    <script src="/env.js"></script>
     <script src="backend/routes/env.js"></script>
     <script src="backend/routes/firebase-config.js"></script>
     <script src="auth.js"></script>
@@ -462,6 +463,13 @@
         let defaultApp = null;
         let oldApp = null;
 
+        const SHEETJS_SOURCES = [
+            'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js',
+            'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js',
+            'https://unpkg.com/xlsx/dist/xlsx.full.min.js',
+            'https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js'
+        ];
+
         function getServerTimestampValue() {
             return firebaseSdk ? firebaseSdk.serverTimestamp() : null;
         }
@@ -471,12 +479,31 @@
             if (sheetJsLoader) return sheetJsLoader;
 
             sheetJsLoader = new Promise((resolve, reject) => {
-                const script = document.createElement('script');
-                script.src = 'https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js';
-                script.async = true;
-                script.onload = () => resolve(window.XLSX);
-                script.onerror = () => reject(new Error('Không tải được SheetJS.'));
-                document.head.appendChild(script);
+                let index = 0;
+
+                const loadNextSource = () => {
+                    if (window.XLSX) {
+                        resolve(window.XLSX);
+                        return;
+                    }
+
+                    if (index >= SHEETJS_SOURCES.length) {
+                        reject(new Error('Không tải được SheetJS.'));
+                        return;
+                    }
+
+                    const script = document.createElement('script');
+                    script.src = SHEETJS_SOURCES[index++];
+                    script.async = true;
+                    script.onload = () => {
+                        if (window.XLSX) resolve(window.XLSX);
+                        else loadNextSource();
+                    };
+                    script.onerror = () => loadNextSource();
+                    document.head.appendChild(script);
+                };
+
+                loadNextSource();
             });
 
             return sheetJsLoader;

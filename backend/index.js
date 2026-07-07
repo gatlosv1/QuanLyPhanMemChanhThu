@@ -45,6 +45,10 @@ app.get('/env.js', (req, res) => {
   res.type('application/javascript').send(`window.__ENV__ = ${envJson};`);
 });
 
+app.get('/env.json', (req, res) => {
+  res.json(getFirebasePublicEnv());
+});
+
 app.use(express.static(rootDir));
 
 // API Routes

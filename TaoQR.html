@@ -8,6 +8,7 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
 </head>
 <body class="page-qr">
+  <script src="/env.js"></script>
   <script src="backend/routes/env.js"></script>
   <script src="backend/routes/firebase-config.js"></script>
   <script src="auth.js"></script>
@@ -226,16 +227,7 @@
 
     const FIREBASE_INIT_TIMEOUT_MS = 7000;
     const HISTORY_SYNC_TIMEOUT_MS = 10000;
-    const FALLBACK_FIREBASE_CONFIG = {
-      apiKey: 'AIzaSyAG-0znzoNCqe_ergYn4NyMdeqACSWiiUE',
-      authDomain: 'quanlychanhthu.firebaseapp.com',
-      databaseURL: 'https://quanlychanhthu-default-rtdb.firebaseio.com',
-      projectId: 'quanlychanhthu',
-      storageBucket: 'quanlychanhthu.firebasestorage.app',
-      messagingSenderId: '629444573072',
-      appId: '1:629444573072:web:ba178b2510d761fc876515',
-      measurementId: 'G-SKGDHF0CTT'
-    };
+    const FALLBACK_FIREBASE_CONFIG = null;
 
     function withTimeout(promise, timeoutMs, timeoutMessage) {
       return Promise.race([
@@ -326,6 +318,35 @@
       return commitNextChunk();
     }
 
+    function fetchHistoryFromFirestore() {
+      if (!firestoreDb) return Promise.resolve([]);
+
+      return firestoreDb.collection('scanLotDetails').get().then(function(snapshot) {
+        const items = [];
+        snapshot.forEach(function(doc) {
+          const data = doc.data() || {};
+          items.push({
+            ...data,
+            ma_lo: data.maLo || data.ma_lo || doc.id,
+            ngay_display: data.ngaySX || data.ngayDG || data.ngay_display || '',
+            timestamp: data.updatedAtClient || data.createdAtClient || data.timestamp || '',
+            bienso: data.soXe || data.bienso || '',
+            ttxe: data.maNhaCungCap || data.ttxe || '',
+            kho1: data.kho1 || '',
+            kho2: data.kho2 || '',
+            kho3: data.kho3 || '',
+            kho4: data.kho4 || '',
+            ncc: data.maNhaCungCap || data.ncc || '',
+            noi: data.vungNguyenLieu || data.noi || '',
+            hang: data.nhomSanPham || data.hang || '',
+            mui: data.mui || '',
+            tongkl: data.tongKL || data.tongkl || ''
+          });
+        });
+        return items;
+      });
+    }
+
     function getHistorySignature(items) {
       if (!Array.isArray(items) || items.length === 0) return 'empty';
       const first = items[0] || {};
@@ -361,11 +382,18 @@
 
       const realtimeDb = app.database();
       const realtimeRef = realtimeDb.ref('qrHistory');
-      await withTimeout(realtimeRef.limitToFirst(1).once('value'), 4500, 'Khong doc duoc qrHistory');
-
-      db = realtimeDb;
-      historyRef = realtimeRef;
       firestoreDb = app.firestore();
+
+      try {
+        await withTimeout(realtimeRef.limitToFirst(1).once('value'), 4500, 'Khong doc duoc qrHistory');
+        db = realtimeDb;
+        historyRef = realtimeRef;
+      } catch (error) {
+        console.warn('Realtime Database khong truy cap duoc, dung Firestore fallback cho lich su:', error);
+        db = null;
+        historyRef = null;
+      }
+
       return app;
     }
 
@@ -378,7 +406,7 @@
       try {
         await initializeFirebaseFromConfig(firebaseConfig, 'runtimeApp');
       } catch (primaryError) {
-        if (isSameProject(firebaseConfig, FALLBACK_FIREBASE_CONFIG)) {
+        if (!FALLBACK_FIREBASE_CONFIG || isSameProject(firebaseConfig, FALLBACK_FIREBASE_CONFIG)) {
           throw primaryError;
         }
         console.warn('Primary Firebase config failed, fallback to data project:', primaryError);
@@ -459,10 +487,15 @@
       updateSyncStatus('Đang Đồng Bộ...', '#ffc107');
 
       withTimeout(firebaseReady, FIREBASE_INIT_TIMEOUT_MS, 'Khoi tao Firebase qua lau').then(function() {
-        return withTimeout(historyRef.once('value'), HISTORY_SYNC_TIMEOUT_MS, 'Doc lich su qua lau');
+        if (historyRef) {
+          return withTimeout(historyRef.once('value'), HISTORY_SYNC_TIMEOUT_MS, 'Doc lich su qua lau');
+        }
+        return fetchHistoryFromFirestore().then(function(items) {
+          return { val: function() { return items; } };
+        });
       }).then(function(snapshot) {
         const data = snapshot.val();
-        history = data ? Object.values(data) : [];
+        history = Array.isArray(data) ? data : (data ? Object.values(data) : []);
         history.sort(function(a,b) { return (b.id || 0) - (a.id || 0); });
 
         // Render immediately so the UI feels responsive even with large sync batches.
@@ -493,8 +526,14 @@
     function saveToHistory(data) {
       const newEntry = Object.assign({}, data, { timestamp: new Date().toLocaleString('vi-VN'), id: Date.now() });
       firebaseReady.then(function() {
-        return historyRef.push(newEntry).then(function() {
-          return syncOneHistoryItemToFirestore(newEntry);
+        if (historyRef) {
+          return historyRef.push(newEntry).then(function() {
+            return syncOneHistoryItemToFirestore(newEntry);
+          });
+        }
+        return syncOneHistoryItemToFirestore({
+          ...newEntry,
+          ma_lo: newEntry.ma_lo || newEntry.maLo || ''
         });
       }).then(function() {
         loadHistoryFromFirebase();
@@ -603,9 +642,34 @@
     window.deleteSingleHistory = function(ma_lo) {
       if (currentPermission !== 2) return;
       if (!confirm('Xoa ma lo: ' + ma_lo + '?')) return;
-      historyRef.orderByChild('ma_lo').equalTo(ma_lo).once('value', function(snapshot) {
-        snapshot.forEach(function(child) { child.ref.remove(); });
-        loadHistoryFromFirebase();
+      if (historyRef) {
+        historyRef.orderByChild('ma_lo').equalTo(ma_lo).once('value', function(snapshot) {
+          snapshot.forEach(function(child) { child.ref.remove(); });
+          loadHistoryFromFirebase();
+        });
+        return;
+      }
+
+      fetchHistoryFromFirestore().then(function(items) {
+        const matched = items.filter(function(item) {
+          return String(item.ma_lo || '').trim() === String(ma_lo || '').trim();
+        });
+        if (matched.length === 0) {
+          alert('Khong tim thay ma lo de xoa.');
+          return;
+        }
+
+        const batch = firestoreDb.batch();
+        matched.forEach(function(item) {
+          const docId = sanitizeDocId(item.ma_lo);
+          if (!docId) return;
+          batch.delete(firestoreDb.collection('scanLotDetails').doc(docId));
+        });
+        return batch.commit().then(function() {
+          loadHistoryFromFirebase();
+        });
+      }).catch(function(error) {
+        alert('Khong the xoa du lieu: ' + (error.message || error));
       });
     };
 
@@ -725,6 +789,12 @@
 
     window.loadQRFromHistoryByCode = function(maLo) {
       firebaseReady.then(function() {
+        if (!historyRef) {
+          return fetchHistoryFromFirestore().then(function(items) {
+            const matched = items.filter(function(item) { return String(item.ma_lo || '').trim() === String(maLo || '').trim(); });
+            return { forEach: function(callback) { matched.forEach(function(item) { callback({ val: function() { return item; } }); }); } };
+          });
+        }
         return historyRef.orderByChild('ma_lo').equalTo(maLo).once('value');
       }).then(function(snapshot) {
         let found = false;
@@ -754,7 +824,10 @@
           if (Array.isArray(imported)) {
             if (confirm('Nhap ' + imported.length + ' ban ghi?')) {
               firebaseReady.then(function() {
-                return Promise.all(imported.map(function(item) { return historyRef.push(item); }));
+                if (historyRef) {
+                  return Promise.all(imported.map(function(item) { return historyRef.push(item); }));
+                }
+                return Promise.all(imported.map(function(item) { return syncOneHistoryItemToFirestore(item); }));
               }).then(function() {
                 return syncHistoryListToFirestore(imported).then(function() {
                   loadHistoryFromFirebase();
@@ -829,7 +902,16 @@
       }
 
       firebaseReady.then(function() {
-        return historyRef.remove();
+        if (historyRef) {
+          return historyRef.remove();
+        }
+
+        return firestoreDb.collection('scanLotDetails').get().then(function(snapshot) {
+          if (snapshot.empty) return null;
+          const batch = firestoreDb.batch();
+          snapshot.forEach(function(doc) { batch.delete(doc.ref); });
+          return batch.commit();
+        });
       }).then(function() {
         history = [];
         renderHistory();

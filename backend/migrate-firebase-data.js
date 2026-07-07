@@ -112,7 +112,7 @@ async function migrate() {
   const newConfig = buildConfig('NEW_FIREBASE', {
     apiKey: 'AIzaSyAG-0znzoNCqe_ergYn4NyMdeqACSWiiUE',
     authDomain: 'quanlychanhthu.firebaseapp.com',
-    databaseURL: 'https://quanlychanhthu-default-rtdb.firebaseio.com',
+    databaseURL: 'https://quanlychanhthu-default-rtdb.asia-southeast1.firebasedatabase.app',
     projectId: 'quanlychanhthu',
     storageBucket: 'quanlychanhthu.firebasestorage.app',
     messagingSenderId: '629444573072',
