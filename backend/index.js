@@ -11,6 +11,19 @@ const app = express();
 const PORT = process.env.PORT || 3001;
 const rootDir = path.join(__dirname, '..');
 
+function getFirebasePublicEnv() {
+  return {
+    FIREBASE_API_KEY: process.env.FIREBASE_API_KEY || '',
+    FIREBASE_AUTH_DOMAIN: process.env.FIREBASE_AUTH_DOMAIN || '',
+    FIREBASE_DATABASE_URL: process.env.FIREBASE_DATABASE_URL || '',
+    FIREBASE_PROJECT_ID: process.env.FIREBASE_PROJECT_ID || '',
+    FIREBASE_STORAGE_BUCKET: process.env.FIREBASE_STORAGE_BUCKET || '',
+    FIREBASE_MESSAGING_SENDER_ID: process.env.FIREBASE_MESSAGING_SENDER_ID || '',
+    FIREBASE_APP_ID: process.env.FIREBASE_APP_ID || '',
+    FIREBASE_MEASUREMENT_ID: process.env.FIREBASE_MEASUREMENT_ID || ''
+  };
+}
+
 function getAllowedOrigins() {
   const raw = process.env.CORS_ORIGINS || 'http://localhost:3001,http://127.0.0.1:3001';
   return raw.split(',').map(item => item.trim()).filter(Boolean);
@@ -26,6 +39,12 @@ app.use(cors({
 }));
 app.use(express.json());
 app.use(rateLimit({ windowMs: 60 * 1000, maxRequests: 60 }));
+
+app.get('/env.js', (req, res) => {
+  const envJson = JSON.stringify(getFirebasePublicEnv());
+  res.type('application/javascript').send(`window.__ENV__ = ${envJson};`);
+});
+
 app.use(express.static(rootDir));
 
 // API Routes
