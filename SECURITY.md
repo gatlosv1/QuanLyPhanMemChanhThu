@@ -32,7 +32,18 @@ FIREBASE_STORAGE_BUCKET=your_project.firebasestorage.app
 FIREBASE_MESSAGING_SENDER_ID=your_sender_id
 FIREBASE_APP_ID=your_app_id
 FIREBASE_MEASUREMENT_ID=your_measurement_id
+API_TOKEN=replace_with_your_bearer_token
 ```
+
+### Rotating the backend API token
+The protected backend routes read the bearer token from `backend/.env` using `API_TOKEN`.
+
+To change it later:
+1. Update `API_TOKEN` in `backend/.env`
+2. Restart the backend server so `dotenv` reloads the new value
+3. Update any client, script, or integration that sends `Authorization: Bearer <token>`
+
+Firebase public config is separate from the backend bearer token. If you need to switch Firebase projects, update the `FIREBASE_*` variables in `backend/.env`.
 
 **For production/deployment:**
 - Set these environment variables in your hosting platform (Netlify, Vercel, etc.)

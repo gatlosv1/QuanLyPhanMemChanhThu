@@ -217,20 +217,18 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 
   <script>
-    const firebaseConfig = {
-      apiKey: "AIzaSyAiuq6ZQGVTnPfaWy6rEa8AAV1lse-ZuaU",
-      authDomain: "quanlyindulieu.firebaseapp.com",
-      databaseURL: "https://quanlyindulieu-default-rtdb.firebaseio.com",
-      projectId: "quanlyindulieu",
-      storageBucket: "quanlyindulieu.firebasestorage.app",
-      messagingSenderId: "612738369968",
-      appId: "1:612738369968:web:c6c08c19253a78e522ae75",
-      measurementId: "G-JDM9XPHPEQ"
-    };
+    let db = null;
+    let historyRef = null;
 
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.database();
-    const historyRef = db.ref('qrHistory');
+    const firebaseReady = (async function initializeFirebase() {
+      const runtimeConfig = window.getRuntimeConfig ? await window.getRuntimeConfig() : null;
+      const firebaseConfig = runtimeConfig || window.FIREBASE_CONFIG || {};
+      if (!firebase.apps.length) {
+        firebase.initializeApp(firebaseConfig);
+      }
+      db = firebase.app().database();
+      historyRef = db.ref('qrHistory');
+    })();
 
     let history = [];
     let html5QrCode = null;
@@ -306,7 +304,9 @@
       status.textContent = 'Đang Đồng Bộ...';
       status.style.color = '#ffc107';
 
-      historyRef.once('value', function(snapshot) {
+      firebaseReady.then(function() {
+        return historyRef.once('value');
+      }).then(function(snapshot) {
         const data = snapshot.val();
         history = data ? Object.values(data) : [];
         history.sort(function(a,b) { return (b.id || 0) - (a.id || 0); });
@@ -314,12 +314,22 @@
         status.textContent = 'Đã Đồng Bộ';
         status.style.color = '#28a745';
         setTimeout(function() { status.textContent = ''; }, 2000);
+      }).catch(function(err) {
+        status.textContent = 'Lỗi Đồng Bộ';
+        status.style.color = '#dc2626';
+        console.error('loadHistoryFromFirebase error:', err);
       });
     }
 
     function saveToHistory(data) {
       const newEntry = Object.assign({}, data, { timestamp: new Date().toLocaleString('vi-VN'), id: Date.now() });
-      historyRef.push(newEntry).then(function() { loadHistoryFromFirebase(); });
+      firebaseReady.then(function() {
+        return historyRef.push(newEntry);
+      }).then(function() {
+        loadHistoryFromFirebase();
+      }).catch(function(err) {
+        console.error('saveToHistory error:', err);
+      });
     }
 
     function appendInfoLine(container, label, value) {
@@ -543,13 +553,17 @@
     }
 
     window.loadQRFromHistoryByCode = function(maLo) {
-      historyRef.orderByChild('ma_lo').equalTo(maLo).once('value', function(snapshot) {
+      firebaseReady.then(function() {
+        return historyRef.orderByChild('ma_lo').equalTo(maLo).once('value');
+      }).then(function(snapshot) {
         let found = false;
         snapshot.forEach(function(child) {
           loadQRFromHistory(child.val());
           found = true;
         });
         if (!found) alert('Khong tim thay ma: ' + maLo);
+      }).catch(function(err) {
+        alert('Khong the tai du lieu QR: ' + err.message);
       });
     };
 
@@ -568,9 +582,14 @@
           const imported = JSON.parse(event.target.result);
           if (Array.isArray(imported)) {
             if (confirm('Nhap ' + imported.length + ' ban ghi?')) {
-              imported.forEach(function(item) { historyRef.push(item); });
-              setTimeout(loadHistoryFromFirebase, 1000);
-              alert('Nhap du lieu thanh cong!');
+              firebaseReady.then(function() {
+                return Promise.all(imported.map(function(item) { return historyRef.push(item); }));
+              }).then(function() {
+                loadHistoryFromFirebase();
+                alert('Nhap du lieu thanh cong!');
+              }).catch(function(err) {
+                alert('Loi nhap du lieu: ' + err.message);
+              });
             }
           }
         } catch (err) { alert('Loi file: ' + err.message); }
@@ -636,7 +655,9 @@
         return alert('Mat khau sai!');
       }
 
-      historyRef.remove().then(function() {
+      firebaseReady.then(function() {
+        return historyRef.remove();
+      }).then(function() {
         history = [];
         renderHistory();
         alert('Da xoa toan bo lich su thanh cong!');
@@ -647,7 +668,11 @@
     document.getElementById('clearBtn').addEventListener('click', function() { location.reload(); });
 
     applyQrPermissions();
-    loadHistoryFromFirebase();
+    firebaseReady.then(function() {
+      loadHistoryFromFirebase();
+    }).catch(function(err) {
+      console.error('Firebase init error:', err);
+    });
   </script>
 </body>
 </html>
