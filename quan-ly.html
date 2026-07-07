@@ -162,6 +162,7 @@
               <select id="newRole" class="w-full px-4 py-2 border border-slate-200 rounded-xl focus:outline-none focus:border-brand-500">
                 <option value="staff">Nhân viên</option>
                 <option value="admin">Admin</option>
+                <option value="dev">Dev</option>
               </select>
             </div>
             <div>
@@ -195,6 +196,25 @@
               </button>
             </div>
           </form>
+        </div>
+
+        <div class="mb-6 rounded-2xl border border-slate-200 bg-slate-50 p-6">
+          <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
+            <h3 class="text-lg font-semibold">Backup Toàn Bộ Hệ Thống</h3>
+            <span class="text-xs text-slate-500">Firestore + Realtime Database (qrHistory)</span>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <button id="downloadBackupBtn" type="button" class="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-700">
+              <i data-lucide="download" class="h-4 w-4"></i>
+              Tải Backup
+            </button>
+            <button id="uploadBackupBtn" type="button" class="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700">
+              <i data-lucide="upload" class="h-4 w-4"></i>
+              Tải Lên Backup
+            </button>
+          </div>
+          <p id="backupMessage" class="mt-3 text-sm text-slate-600"></p>
+          <input id="backupFileInput" type="file" accept="application/json,.json" class="hidden">
         </div>
 
         <div class="border-t border-slate-200 pt-6">
@@ -243,6 +263,7 @@
 
     <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
     <script>
       lucide.createIcons();
 
@@ -271,6 +292,18 @@
         const quickEditPermission = document.getElementById('quickEditPermission');
         const quickEditPermissionHint = document.getElementById('quickEditPermissionHint');
         const cleanupAccountsBtn = document.getElementById('cleanupAccountsBtn');
+        const downloadBackupBtn = document.getElementById('downloadBackupBtn');
+        const uploadBackupBtn = document.getElementById('uploadBackupBtn');
+        const backupFileInput = document.getElementById('backupFileInput');
+        const backupMessage = document.getElementById('backupMessage');
+        const backupCollections = [
+          'accounts',
+          'thanhpham',
+          'printHistory',
+          'productCounters',
+          'scanLotDetails',
+          'viewerQrTokens'
+        ];
         const permissionLabels = {
           'index.view': 'Xem trang In Tem',
           'index.edit': 'Sửa thông tin nhãn',
@@ -292,7 +325,8 @@
           'viewer.scan': 'Quét QR trên Viewer',
           'manager.view': 'Xem trang quản lý',
           'manager.createAccount': 'Tạo tài khoản',
-          'manager.manageAccounts': 'Quản trị tài khoản'
+          'manager.manageAccounts': 'Quản trị tài khoản',
+          'manager.backup': 'Tạo/khôi phục backup hệ thống'
         };
         const pageEditPermissionKeyMap = {
           'index.html': 'index.edit',
@@ -395,18 +429,200 @@
           navigationHint.textContent = 'Không xác định được trang được cấp quyền cho tài khoản hiện tại.';
         }
 
+        function setBackupMessage(text, isError = false) {
+          if (!backupMessage) return;
+          backupMessage.textContent = text || '';
+          backupMessage.className = isError
+            ? 'mt-3 text-sm text-red-700'
+            : 'mt-3 text-sm text-slate-600';
+        }
+
+        async function getManagerFirebase() {
+          const runtimeConfig = await window.getRuntimeConfig();
+          const firebaseConfig = runtimeConfig || {};
+          const appName = 'manager-accounts';
+          if (!firebase.apps.find(app => app.name === appName)) {
+            firebase.initializeApp(firebaseConfig, appName);
+          }
+          const app = firebase.app(appName);
+          return {
+            app,
+            db: app.firestore(),
+            rtdb: app.database(),
+            projectId: firebaseConfig.projectId || ''
+          };
+        }
+
+        async function readAllCollectionDocs(db, collectionName) {
+          const snapshot = await db.collection(collectionName).get();
+          const rows = [];
+          snapshot.forEach((doc) => {
+            rows.push({ id: doc.id, ...doc.data() });
+          });
+          return rows;
+        }
+
+        async function writeCollectionRows(db, collectionName, rows) {
+          if (!Array.isArray(rows) || rows.length === 0) return;
+          const chunkSize = 400;
+          for (let i = 0; i < rows.length; i += chunkSize) {
+            const chunk = rows.slice(i, i + chunkSize);
+            const batch = db.batch();
+            chunk.forEach((row) => {
+              const payload = { ...row };
+              const docId = String(payload.id || '').trim();
+              delete payload.id;
+              if (docId) {
+                batch.set(db.collection(collectionName).doc(docId), payload, { merge: true });
+              } else {
+                batch.set(db.collection(collectionName).doc(), payload, { merge: true });
+              }
+            });
+            await batch.commit();
+          }
+        }
+
+        async function downloadSystemBackup() {
+          if (!currentUser || currentUser.role !== 'dev') {
+            setBackupMessage('Bạn không có quyền tạo backup.', true);
+            return;
+          }
+
+          setBackupMessage('Đang tạo backup toàn hệ thống...');
+          try {
+            const { db, rtdb, projectId } = await getManagerFirebase();
+            const collections = {};
+            for (const name of backupCollections) {
+              collections[name] = await readAllCollectionDocs(db, name);
+            }
+
+            let qrHistory = {};
+            let rtdbAccess = 'ok';
+            let rtdbError = '';
+            try {
+              const snap = await rtdb.ref('qrHistory').once('value');
+              qrHistory = snap.val() || {};
+            } catch (error) {
+              rtdbAccess = 'denied';
+              rtdbError = String(error?.message || error || 'Unknown RTDB error');
+            }
+
+            const payload = {
+              backupVersion: 1,
+              exportedAt: new Date().toISOString(),
+              projectId,
+              collections,
+              realtimeDatabase: {
+                qrHistory,
+                rtdbAccess,
+                rtdbError
+              }
+            };
+
+            const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+            const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `system-backup-${stamp}.json`;
+            link.click();
+            URL.revokeObjectURL(url);
+
+            const note = rtdbAccess === 'ok'
+              ? 'Backup hoàn tất và đã tải file về.'
+              : 'Backup Firestore hoàn tất (RTDB bị chặn quyền đọc).';
+            setBackupMessage(note);
+          } catch (error) {
+            setBackupMessage('Lỗi tạo backup: ' + (error.message || error), true);
+          }
+        }
+
+        async function restoreSystemBackup(file) {
+          if (!file) return;
+          if (!currentUser || currentUser.role !== 'dev') {
+            setBackupMessage('Bạn không có quyền khôi phục backup.', true);
+            return;
+          }
+
+          const content = await file.text();
+          let payload = null;
+          try {
+            payload = JSON.parse(content);
+          } catch (error) {
+            setBackupMessage('File backup không phải JSON hợp lệ.', true);
+            return;
+          }
+
+          if (!payload || typeof payload !== 'object' || !payload.collections) {
+            setBackupMessage('File backup thiếu dữ liệu collections.', true);
+            return;
+          }
+
+          if (!confirm('Khôi phục backup sẽ ghi đè/ghép dữ liệu hiện tại. Tiếp tục?')) return;
+
+          setBackupMessage('Đang khôi phục backup...');
+          try {
+            const { db, rtdb } = await getManagerFirebase();
+
+            for (const name of backupCollections) {
+              const rows = payload.collections[name];
+              if (Array.isArray(rows)) {
+                await writeCollectionRows(db, name, rows);
+              }
+            }
+
+            const rtData = payload.realtimeDatabase && payload.realtimeDatabase.qrHistory;
+            if (rtData && typeof rtData === 'object') {
+              try {
+                await rtdb.ref('qrHistory').set(rtData);
+              } catch (error) {
+                console.warn('Không ghi được RTDB qrHistory:', error);
+              }
+            }
+
+            if (window.refreshAuthAccounts) {
+              await window.refreshAuthAccounts();
+            }
+
+            setBackupMessage('Khôi phục backup thành công.');
+          } catch (error) {
+            setBackupMessage('Lỗi khôi phục backup: ' + (error.message || error), true);
+          }
+        }
+
         if (currentUserName) currentUserName.textContent = currentUser?.username || 'Không xác định';
-        if (currentUserRole) currentUserRole.textContent = currentUser?.role ? (currentUser.role === 'admin' ? 'Quản Trị Viên' : 'Nhân Viên') : '-';
+        if (currentUserRole) {
+          currentUserRole.textContent = currentUser?.role
+            ? (currentUser.role === 'admin'
+              ? 'Quản Trị Viên'
+              : (currentUser.role === 'dev' ? 'Developer' : 'Nhân Viên'))
+            : '-';
+        }
         if (currentUserPage) currentUserPage.textContent = currentUser?.page ? (currentUser.page === 'index.html' ? 'In Tem' : currentUser.page === 'viewer.html' ? 'Viewer' : 'Quản Lý QR') : '-';
 
         updateNavigationForUser(currentUser);
 
-        if (!currentUser || currentUser.role !== 'admin') {
+        const isAdmin = !!currentUser && currentUser.role === 'admin';
+        const isDev = !!currentUser && currentUser.role === 'dev';
+
+        if (!currentUser || (!isAdmin && !isDev)) {
           if (showRegisterBtn) showRegisterBtn.style.display = 'none';
           if (registerForm) registerForm.classList.add('hidden');
+          if (downloadBackupBtn) downloadBackupBtn.style.display = 'none';
+          if (uploadBackupBtn) uploadBackupBtn.style.display = 'none';
           registerMessage.classList.remove('hidden');
-          registerMessage.textContent = '🔒 Chỉ quản trị viên mới có thể tạo tài khoản.';
+          registerMessage.textContent = '🔒 Chỉ admin hoặc dev mới có thể truy cập trang quản lý.';
           return;
+        }
+
+        if (!isAdmin) {
+          if (showRegisterBtn) showRegisterBtn.style.display = 'none';
+          if (registerForm) registerForm.classList.add('hidden');
+        }
+
+        if (!isDev) {
+          if (downloadBackupBtn) downloadBackupBtn.style.display = 'none';
+          if (uploadBackupBtn) uploadBackupBtn.style.display = 'none';
         }
 
         if (showRegisterBtn) {
@@ -425,9 +641,10 @@
         if (newRoleSelect) {
           newRoleSelect.addEventListener('change', () => {
             const isAdminRole = newRoleSelect.value === 'admin';
+            const isDevRole = newRoleSelect.value === 'dev';
             if (newPageSelect) {
-              newPageSelect.value = isAdminRole ? 'quan-ly.html' : 'index.html';
-              newPageSelect.disabled = isAdminRole;
+              newPageSelect.value = (isAdminRole || isDevRole) ? 'quan-ly.html' : 'index.html';
+              newPageSelect.disabled = isAdminRole || isDevRole;
             }
             renderPermissionEditor();
           });
@@ -491,7 +708,10 @@
                 passwordHash,
                 role,
                 page,
-                permissions,
+                permissions: {
+                  ...permissions,
+                  'manager.backup': role === 'dev'
+                },
                 label: page,
                 createdAt: new Date().toISOString(),
                 createdBy: currentUser.username
@@ -513,6 +733,9 @@
         }
 
         if (cleanupAccountsBtn) {
+          if (!isAdmin) {
+            cleanupAccountsBtn.style.display = 'none';
+          }
           cleanupAccountsBtn.addEventListener('click', async () => {
             if (!confirm('Xóa toàn bộ tài khoản không phải admin trong Firebase?')) return;
 
@@ -550,6 +773,22 @@
               registerMessage.classList.remove('hidden');
               registerMessage.className = 'mb-4 rounded-2xl bg-red-50 p-4 text-sm text-red-700';
               registerMessage.textContent = '❌ Lỗi khi dọn tài khoản: ' + error.message;
+            }
+          });
+        }
+
+        if (downloadBackupBtn) {
+          downloadBackupBtn.addEventListener('click', downloadSystemBackup);
+        }
+
+        if (uploadBackupBtn && backupFileInput) {
+          uploadBackupBtn.addEventListener('click', () => backupFileInput.click());
+          backupFileInput.addEventListener('change', async (event) => {
+            const file = event.target.files && event.target.files[0];
+            try {
+              await restoreSystemBackup(file);
+            } finally {
+              backupFileInput.value = '';
             }
           });
         }

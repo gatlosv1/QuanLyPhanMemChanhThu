@@ -28,7 +28,8 @@ const pagePermissionTemplates = {
   'quan-ly.html': {
     'manager.view': true,
     'manager.createAccount': true,
-    'manager.manageAccounts': true
+    'manager.manageAccounts': true,
+    'manager.backup': false
   }
 };
 
@@ -37,7 +38,11 @@ function buildDefaultPermissions(page, role) {
     return { '*': true };
   }
   const template = pagePermissionTemplates[page] || {};
-  return { ...template };
+  const defaults = { ...template };
+  if (role === 'dev') {
+    defaults['manager.backup'] = true;
+  }
+  return defaults;
 }
 
 function normalizePermissions(account) {
