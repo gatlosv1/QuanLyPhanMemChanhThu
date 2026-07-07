@@ -5,17 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>In Nhãn - Quản Lý Kho</title>
     
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.tailwindcss.com" defer></script>
+    <script src="https://unpkg.com/lucide@latest" defer></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
-    
-    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js" defer></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" defer></script>
     
     <script>
       tailwind.config = {
@@ -91,7 +86,7 @@
 <body class="min-h-screen bg-slate-50 text-slate-800">
     <script src="firebase-config.js"></script>
     <script src="auth.js"></script>
-    <script src="barcode-code-utils.js"></script>
+    <script src="barcode-code-utils.js" defer></script>
     <script>
         if (!requirePageAccess('index.html')) {
             document.write('');
@@ -431,24 +426,155 @@
 
     <script>
         // ==================== PHẦN CHỌN LOT TỪ LỊCH SỬ CŨ ====================
+        let sheetJsLoader = null;
+        let firebaseSdkLoader = null;
+        let firebaseSdk = null;
+        let defaultApp = null;
+        let oldApp = null;
+
+        function getServerTimestampValue() {
+            return firebaseSdk ? firebaseSdk.serverTimestamp() : null;
+        }
+
+        function ensureSheetJsLoaded() {
+            if (window.XLSX) return Promise.resolve(window.XLSX);
+            if (sheetJsLoader) return sheetJsLoader;
+
+            sheetJsLoader = new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = 'https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js';
+                script.async = true;
+                script.onload = () => resolve(window.XLSX);
+                script.onerror = () => reject(new Error('Không tải được SheetJS.'));
+                document.head.appendChild(script);
+            });
+
+            return sheetJsLoader;
+        }
+
+        async function ensureFirebaseSdkLoaded() {
+            if (firebaseSdk) return firebaseSdk;
+            if (firebaseSdkLoader) return firebaseSdkLoader;
+
+            firebaseSdkLoader = Promise.all([
+                import('https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js'),
+                import('https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js'),
+                import('https://www.gstatic.com/firebasejs/10.14.1/firebase-database.js')
+            ]).then(([appMod, firestoreMod, databaseMod]) => {
+                firebaseSdk = {
+                    initializeApp: appMod.initializeApp,
+                    getApp: appMod.getApp,
+                    getApps: appMod.getApps,
+                    getFirestore: firestoreMod.getFirestore,
+                    collection: firestoreMod.collection,
+                    doc: firestoreMod.doc,
+                    getDoc: firestoreMod.getDoc,
+                    setDoc: firestoreMod.setDoc,
+                    deleteDoc: firestoreMod.deleteDoc,
+                    addDoc: firestoreMod.addDoc,
+                    query: firestoreMod.query,
+                    orderBy: firestoreMod.orderBy,
+                    onSnapshot: firestoreMod.onSnapshot,
+                    writeBatch: firestoreMod.writeBatch,
+                    serverTimestamp: firestoreMod.serverTimestamp,
+                    getDatabase: databaseMod.getDatabase,
+                    ref: databaseMod.ref,
+                    getDbValue: databaseMod.get
+                };
+                return firebaseSdk;
+            });
+
+            return firebaseSdkLoader;
+        }
+
+        function createFirestoreCompatFacade(firestoreDb) {
+            const sdk = firebaseSdk;
+            if (!sdk) throw new Error('Firebase SDK chưa được nạp.');
+
+            const wrapDocRef = (docRef) => ({
+                _ref: docRef,
+                id: docRef.id,
+                async get() {
+                    const snap = await sdk.getDoc(docRef);
+                    return {
+                        id: snap.id,
+                        exists: snap.exists(),
+                        data: () => snap.data()
+                    };
+                },
+                set(data, options) {
+                    return sdk.setDoc(docRef, data, options || {});
+                },
+                delete() {
+                    return sdk.deleteDoc(docRef);
+                }
+            });
+
+            return {
+                collection(path) {
+                    const colRef = sdk.collection(firestoreDb, path);
+                    return {
+                        doc(id) {
+                            const docRef = typeof id === 'string' && id
+                                ? sdk.doc(colRef, id)
+                                : sdk.doc(colRef);
+                            return wrapDocRef(docRef);
+                        },
+                        add(data) {
+                            return sdk.addDoc(colRef, data);
+                        },
+                        onSnapshot(next, error) {
+                            return sdk.onSnapshot(colRef, next, error);
+                        },
+                        orderBy(field, direction = 'asc') {
+                            const q = sdk.query(colRef, sdk.orderBy(field, direction));
+                            return {
+                                onSnapshot(next, error) {
+                                    return sdk.onSnapshot(q, next, error);
+                                }
+                            };
+                        }
+                    };
+                },
+                batch() {
+                    const batch = sdk.writeBatch(firestoreDb);
+                    return {
+                        set(docLike, data, options) {
+                            batch.set(docLike && docLike._ref ? docLike._ref : docLike, data, options || {});
+                        },
+                        delete(docLike) {
+                            batch.delete(docLike && docLike._ref ? docLike._ref : docLike);
+                        },
+                        commit() {
+                            return batch.commit();
+                        }
+                    };
+                }
+            };
+        }
+
         let historyRef = null;
         let historyLots = [];
 
         async function ensureLegacyHistoryRef() {
             if (historyRef) return historyRef;
-            const runtimeConfig = await window.getRuntimeConfig();
-            const oldConfig = runtimeConfig || {};
-            if (!firebase.apps.find(app => app.name === 'oldApp')) {
-                firebase.initializeApp(oldConfig, 'oldApp');
+            await ensureFirebaseSdkLoaded();
+            const config = runtimeConfig || await window.getRuntimeConfig();
+
+            try {
+                oldApp = firebaseSdk.getApp('oldApp');
+            } catch (error) {
+                oldApp = firebaseSdk.initializeApp(config || {}, 'oldApp');
             }
-            historyRef = firebase.app('oldApp').database().ref('qrHistory');
+
+            historyRef = firebaseSdk.ref(firebaseSdk.getDatabase(oldApp), 'qrHistory');
             return historyRef;
         }
 
         async function loadHistoryLots() {
             try {
                 const ref = await ensureLegacyHistoryRef();
-                const snapshot = await ref.once('value');
+                const snapshot = await firebaseSdk.getDbValue(ref);
                 const data = snapshot.val();
                 historyLots = data ? Object.values(data) : [];
                 historyLots.sort((a, b) => (b.id || 0) - (a.id || 0));
@@ -697,7 +823,7 @@
                 createdBy: (window.getCurrentUser && window.getCurrentUser()?.username) || 'unknown',
                 expiresAtClient: expiresAt,
                 active: true,
-                updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                updatedAt: getServerTimestampValue()
             }, { merge: true });
 
             return token;
@@ -758,7 +884,7 @@
                 await db.collection('scanLotDetails').doc(docId).set({
                     ...payload,
                     qrToken,
-                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                    updatedAt: getServerTimestampValue()
                 }, { merge: true });
 
                 const qrRoot = document.getElementById('infoQrCode');
@@ -1137,12 +1263,17 @@
 
         async function initFirebase() {
             try {
+                await ensureFirebaseSdkLoaded();
                 runtimeConfig = await window.getRuntimeConfig();
                 const firebaseConfig = runtimeConfig || {};
-                if (!firebase.apps.find(app => app.name === '[DEFAULT]')) {
-                    firebase.initializeApp(firebaseConfig);
+
+                if (firebaseSdk.getApps().length) {
+                    defaultApp = firebaseSdk.getApp();
+                } else {
+                    defaultApp = firebaseSdk.initializeApp(firebaseConfig);
                 }
-                db = firebase.firestore();
+
+                db = createFirestoreCompatFacade(firebaseSdk.getFirestore(defaultApp));
             } catch (error) {
                 console.error('Init Firebase failed:', error);
                 db = null;
@@ -1326,7 +1457,7 @@
                     nextSTT,
                     lastSttDau: sttDau,
                     lastSttCuoi: sttCuoi,
-                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                    updatedAt: getServerTimestampValue()
                 }, { merge: true });
                 lastLoadedProductKey = productKey;
             } catch (e) {
@@ -1535,9 +1666,15 @@
         }
 
         // ==================== XUẤT BÁO CÁO RA EXCEL ====================
-        function exportReportExcel() {
+        async function exportReportExcel() {
             if (!guardPermission('index.exportReport', 'Bạn không có quyền xuất báo cáo Excel.')) return;
             if (scanHistory.length === 0) return alert("Chưa có dữ liệu quét!");
+            try {
+                await ensureSheetJsLoaded();
+            } catch (error) {
+                alert(error.message || 'Không tải được thư viện Excel.');
+                return;
+            }
             const data = scanHistory.map(item => ({
                 "Thời gian": new Date(item.timestamp?.toDate?.() || item.scannedAtClient || Date.now()).toLocaleString('vi-VN'),
                 "Mã tem": item.code || item.maBTP,
@@ -1564,7 +1701,7 @@
                 soLuong: parseInt(document.getElementById('soLuongTem').value) || 1,
                 sttDau: parseInt(document.getElementById('sttDau').value),
                 sttCuoi: parseInt(document.getElementById('sttCuoi').value),
-                timestamp: firebase.firestore.FieldValue.serverTimestamp()
+                timestamp: getServerTimestampValue()
             };
             db.collection("printHistory").add(data);
         }
@@ -1665,6 +1802,13 @@
             }
             if (!db) {
                 alert('Firebase chưa sẵn sàng. Vui lòng tải lại trang rồi thử lại.');
+                input.value = '';
+                return;
+            }
+            try {
+                await ensureSheetJsLoaded();
+            } catch (error) {
+                alert(error.message || 'Không tải được thư viện Excel.');
                 input.value = '';
                 return;
             }

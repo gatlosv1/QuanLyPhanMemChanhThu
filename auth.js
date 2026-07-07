@@ -102,13 +102,25 @@ async function sha256(text) {
   return Array.from(new Uint8Array(digest)).map(byte => byte.toString(16).padStart(2, '0')).join('');
 }
 
-async function fetchJson(url, fallback = null) {
+async function fetchJson(url, fallback = null, timeoutMs = 3000) {
+  const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  let timeoutId = null;
+
+  if (controller) {
+    timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  }
+
   try {
-    const response = await fetch(buildApiUrl(url), { cache: 'no-store' });
+    const response = await fetch(buildApiUrl(url), {
+      cache: 'no-store',
+      signal: controller ? controller.signal : undefined
+    });
     if (!response.ok) throw new Error('Request failed');
     return await response.json();
   } catch (error) {
     return fallback;
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
   }
 }
 
@@ -118,10 +130,10 @@ function getPublicFirebaseConfig() {
 }
 
 async function getRuntimeConfig() {
-  const config = await fetchJson('/api/config', {});
+  const config = await fetchJson('/api/config', null, 2500);
   return {
     ...getPublicFirebaseConfig(),
-    ...(config || {})
+    ...(config && typeof config === 'object' ? config : {})
   };
 }
 
