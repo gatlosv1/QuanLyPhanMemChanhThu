@@ -372,7 +372,7 @@
           const pagePermissions = templates[selectedPage] || {};
           const keys = Object.keys(pagePermissions);
 
-          if (selectedRole === 'admin') {
+          if (selectedRole === 'admin' || selectedRole === 'dev') {
             permissionEditor.innerHTML = '<div class="sm:col-span-2 rounded-lg bg-amber-50 border border-amber-200 p-3 text-amber-800">Tài khoản admin có toàn quyền trên mọi trang.</div>';
             syncQuickEditPermissionFromEditor();
             return;
@@ -395,7 +395,7 @@
 
         function collectPermissionsFromEditor() {
           if (!permissionEditor || !newRoleSelect) return {};
-          if (newRoleSelect.value === 'admin') return { '*': true };
+          if (newRoleSelect.value === 'admin' || newRoleSelect.value === 'dev') return { '*': true };
 
           const permissions = {};
           permissionEditor.querySelectorAll('.permission-checkbox').forEach((checkbox) => {
@@ -406,17 +406,17 @@
         }
 
         function updateNavigationForUser(user) {
-          const isAdmin = user && user.role === 'admin';
+          const isSuperUser = user && (user.role === 'admin' || user.role === 'dev');
           const allowedPage = user && user.page ? user.page : '';
 
           navigationLinks.forEach(link => {
             if (!link.element) return;
-            const canAccess = isAdmin || link.page === allowedPage;
+            const canAccess = isSuperUser || link.page === allowedPage;
             link.element.style.display = canAccess ? 'block' : 'none';
           });
 
           if (!navigationHint) return;
-          if (isAdmin) {
+          if (isSuperUser) {
             navigationHint.textContent = 'Bạn có quyền truy cập tất cả trang hệ thống.';
             return;
           }
@@ -615,7 +615,13 @@
           return;
         }
 
-        if (!isAdmin) {
+        // Admin cannot grant/create dev accounts.
+        if (newRoleSelect && isAdmin) {
+          const devOption = Array.from(newRoleSelect.options).find((opt) => opt.value === 'dev');
+          if (devOption) devOption.remove();
+        }
+
+        if (!isAdmin && !isDev) {
           if (showRegisterBtn) showRegisterBtn.style.display = 'none';
           if (registerForm) registerForm.classList.add('hidden');
         }
@@ -703,6 +709,13 @@
 
               const passwordHash = await hashPassword(password);
 
+              if (role === 'dev' && !isDev) {
+                registerMessage.classList.remove('hidden');
+                registerMessage.className = 'mb-4 rounded-2xl bg-red-50 p-4 text-sm text-red-700';
+                registerMessage.textContent = '❌ Chỉ tài khoản dev mới có thể tạo tài khoản role dev.';
+                return;
+              }
+
               await db.collection('accounts').add({
                 username,
                 passwordHash,
@@ -733,7 +746,7 @@
         }
 
         if (cleanupAccountsBtn) {
-          if (!isAdmin) {
+          if (!isAdmin && !isDev) {
             cleanupAccountsBtn.style.display = 'none';
           }
           cleanupAccountsBtn.addEventListener('click', async () => {

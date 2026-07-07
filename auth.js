@@ -34,20 +34,16 @@ const pagePermissionTemplates = {
 };
 
 function buildDefaultPermissions(page, role) {
-  if (role === 'admin') {
+  if (role === 'admin' || role === 'dev') {
     return { '*': true };
   }
   const template = pagePermissionTemplates[page] || {};
-  const defaults = { ...template };
-  if (role === 'dev') {
-    defaults['manager.backup'] = true;
-  }
-  return defaults;
+  return { ...template };
 }
 
 function normalizePermissions(account) {
   if (!account || typeof account !== 'object') return {};
-  if (account.role === 'admin') return { '*': true };
+  if (account.role === 'admin' || account.role === 'dev') return { '*': true };
 
   const defaults = buildDefaultPermissions(account.page, account.role);
   const raw = account.permissions && typeof account.permissions === 'object' ? account.permissions : {};
@@ -57,7 +53,7 @@ function normalizePermissions(account) {
 function hasPermission(permissionKey) {
   const session = getCurrentSession();
   if (!session) return false;
-  if (session.role === 'admin') return true;
+  if (session.role === 'admin' || session.role === 'dev') return true;
 
   const permissions = session.permissions && typeof session.permissions === 'object' ? session.permissions : {};
   if (permissions['*']) return true;
@@ -208,7 +204,7 @@ async function loginUser(username, password) {
   const session = {
     username: account.username,
     role: account.role,
-    page: account.role === 'admin' ? 'quan-ly.html' : (account.page || 'dang-nhap.html'),
+    page: (account.role === 'admin' || account.role === 'dev') ? 'quan-ly.html' : (account.page || 'dang-nhap.html'),
     label: account.label,
     permissions: normalizePermissions(account)
   };
@@ -228,10 +224,10 @@ function requirePageAccess(currentPageName = getCurrentPageName()) {
   }
 
   const allowedPage = session.page || 'dang-nhap.html';
-  const isAdmin = session.role === 'admin';
+  const isSuperUser = session.role === 'admin' || session.role === 'dev';
   const isAllowedPage = currentPageName === allowedPage || currentPageName === 'dang-nhap.html';
 
-  if (!isAdmin && !isAllowedPage) {
+  if (!isSuperUser && !isAllowedPage) {
     window.location.href = allowedPage;
     return false;
   }
