@@ -222,9 +222,20 @@
     let db = null;
     let historyRef = null;
     let firestoreDb = null;
+    let lastSyncedHistorySignature = '';
 
     const FIREBASE_INIT_TIMEOUT_MS = 7000;
     const HISTORY_SYNC_TIMEOUT_MS = 10000;
+    const FALLBACK_FIREBASE_CONFIG = {
+      apiKey: 'AIzaSyAG-0znzoNCqe_ergYn4NyMdeqACSWiiUE',
+      authDomain: 'quanlychanhthu.firebaseapp.com',
+      databaseURL: 'https://quanlychanhthu-default-rtdb.firebaseio.com',
+      projectId: 'quanlychanhthu',
+      storageBucket: 'quanlychanhthu.firebasestorage.app',
+      messagingSenderId: '629444573072',
+      appId: '1:629444573072:web:ba178b2510d761fc876515',
+      measurementId: 'G-SKGDHF0CTT'
+    };
 
     function withTimeout(promise, timeoutMs, timeoutMessage) {
       return Promise.race([
@@ -315,22 +326,64 @@
       return commitNextChunk();
     }
 
+    function getHistorySignature(items) {
+      if (!Array.isArray(items) || items.length === 0) return 'empty';
+      const first = items[0] || {};
+      const last = items[items.length - 1] || {};
+      return [
+        items.length,
+        String(first.id || ''),
+        String(last.id || ''),
+        String(first.ma_lo || ''),
+        String(last.ma_lo || '')
+      ].join('|');
+    }
+
+    function isSameProject(configA, configB) {
+      return String(configA?.projectId || '') === String(configB?.projectId || '');
+    }
+
+    async function initializeFirebaseFromConfig(firebaseConfig, appName) {
+      if (!firebaseConfig || !firebaseConfig.projectId || !firebaseConfig.apiKey) {
+        throw new Error('Thieu cau hinh Firebase (projectId/apiKey).');
+      }
+
+      let app = null;
+      if (!appName) {
+        app = firebase.apps.length ? firebase.app() : firebase.initializeApp(firebaseConfig);
+      } else {
+        try {
+          app = firebase.app(appName);
+        } catch (error) {
+          app = firebase.initializeApp(firebaseConfig, appName);
+        }
+      }
+
+      const realtimeDb = app.database();
+      const realtimeRef = realtimeDb.ref('qrHistory');
+      await withTimeout(realtimeRef.limitToFirst(1).once('value'), 4500, 'Khong doc duoc qrHistory');
+
+      db = realtimeDb;
+      historyRef = realtimeRef;
+      firestoreDb = app.firestore();
+      return app;
+    }
+
     const firebaseReady = (async function initializeFirebase() {
       const runtimeConfig = window.getRuntimeConfig
         ? await withTimeout(window.getRuntimeConfig(), FIREBASE_INIT_TIMEOUT_MS, 'Lay cau hinh Firebase qua lau')
         : null;
       const firebaseConfig = runtimeConfig || window.FIREBASE_CONFIG || {};
 
-      if (!firebaseConfig || !firebaseConfig.projectId || !firebaseConfig.apiKey) {
-        throw new Error('Thieu cau hinh Firebase (projectId/apiKey).');
+      try {
+        await initializeFirebaseFromConfig(firebaseConfig, 'runtimeApp');
+      } catch (primaryError) {
+        if (isSameProject(firebaseConfig, FALLBACK_FIREBASE_CONFIG)) {
+          throw primaryError;
+        }
+        console.warn('Primary Firebase config failed, fallback to data project:', primaryError);
+        await initializeFirebaseFromConfig(FALLBACK_FIREBASE_CONFIG, 'fallbackDataApp');
       }
-
-      if (!firebase.apps.length) {
-        firebase.initializeApp(firebaseConfig);
-      }
-      db = firebase.app().database();
-      historyRef = db.ref('qrHistory');
-      firestoreDb = firebase.app().firestore();
     })();
 
     let history = [];
@@ -411,10 +464,25 @@
         const data = snapshot.val();
         history = data ? Object.values(data) : [];
         history.sort(function(a,b) { return (b.id || 0) - (a.id || 0); });
-        return syncHistoryListToFirestore(history).then(function() {
-          renderHistory();
+
+        // Render immediately so the UI feels responsive even with large sync batches.
+        renderHistory();
+
+        const signature = getHistorySignature(history);
+        if (signature === lastSyncedHistorySignature) {
+          updateSyncStatus('Dữ liệu đã mới nhất', '#28a745');
+          setTimeout(function() { updateSyncStatus('', ''); }, 1200);
+          return;
+        }
+
+        updateSyncStatus('Đã tải ' + history.length + ' bản ghi, đang đồng bộ nền...', '#2563eb');
+        syncHistoryListToFirestore(history).then(function() {
+          lastSyncedHistorySignature = signature;
           updateSyncStatus('Đã Đồng Bộ ' + history.length + ' bản ghi', '#28a745');
-          setTimeout(function() { updateSyncStatus('', ''); }, 2200);
+          setTimeout(function() { updateSyncStatus('', ''); }, 1800);
+        }).catch(function(syncError) {
+          console.error('syncHistoryListToFirestore error:', syncError);
+          updateSyncStatus('Đồng bộ nền bị lỗi', '#dc2626');
         });
       }).catch(function(err) {
         updateSyncStatus('Lỗi Đồng Bộ', '#dc2626');

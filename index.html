@@ -396,7 +396,7 @@
                         <i class="fas fa-upload"></i> Import Excel
                         <input type="file" id="excelFileModal" accept=".xlsx,.xls" class="hidden" onchange="importExcel(this)">
                     </label>
-                    <button id="addProductBtn" onclick="addProductFromModal()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-sm font-medium">
+                    <button id="addProductBtn" onclick="showAddProductForm()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-xl text-sm font-medium">
                         <i class="fas fa-plus"></i> Thêm thành phẩm
                     </button>
                     <button id="deleteProductBtn" onclick="deleteProductFromModal()" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-xl text-sm font-medium">
@@ -409,10 +409,39 @@
                 <input id="productSearchInput" type="text" placeholder="Tìm theo mã SP hoặc tên thành phẩm..."
                        class="w-full px-4 py-3 border rounded-xl mb-4" onkeyup="filterProductModalList()">
 
+                <div id="addProductForm" class="hidden border border-emerald-200 bg-emerald-50 rounded-xl p-3 mb-4">
+                    <div class="text-sm font-semibold text-emerald-800 mb-2">Thêm thành phẩm mới</div>
+                    <div class="overflow-auto">
+                        <table class="w-full text-sm">
+                            <thead>
+                                <tr class="border-b border-emerald-200">
+                                    <th class="text-left py-2 pr-2">STT</th>
+                                    <th class="text-left py-2 pr-2">Mã SP</th>
+                                    <th class="text-left py-2">Tên Thành Phẩm</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td class="py-2 pr-2"><input id="addProductStt" type="number" min="1" class="w-full px-3 py-2 border rounded-lg" placeholder="VD: 101"></td>
+                                    <td class="py-2 pr-2"><input id="addProductMaSP" type="text" class="w-full px-3 py-2 border rounded-lg" placeholder="VD: TP101"></td>
+                                    <td class="py-2"><input id="addProductTenTP" type="text" class="w-full px-3 py-2 border rounded-lg" placeholder="VD: TP CẤP ĐÔNG SẦU RIÊNG"></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="flex gap-2 justify-end mt-3">
+                        <button onclick="hideAddProductForm()" class="px-4 py-2 bg-slate-200 hover:bg-slate-300 rounded-lg text-sm font-medium">Hủy</button>
+                        <button onclick="addProductFromModal()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-medium">Lưu thành phẩm</button>
+                    </div>
+                </div>
+
                 <div id="productList" class="overflow-auto text-sm">
                     <table class="w-full text-sm">
                         <thead class="sticky top-0 bg-slate-50 border-b">
                             <tr>
+                                <th class="px-3 py-2 text-left font-semibold w-12">
+                                    <input id="selectAllProductsCheckbox" type="checkbox" title="Chọn tất cả" onchange="toggleSelectAllProducts(this.checked)">
+                                </th>
                                 <th class="px-3 py-2 text-left font-semibold">STT</th>
                                 <th class="px-3 py-2 text-left font-semibold">Mã SP</th>
                                 <th class="px-3 py-2 text-left font-semibold">Tên thành phẩm</th>
@@ -597,6 +626,7 @@
         }
 
         let selectedProductModalId = '';
+    let selectedProductDeleteIds = new Set();
 
         function openProductModal() {
             if (!guardPermission('index.selectProduct', 'Bạn không có quyền chọn thành phẩm.')) return;
@@ -613,6 +643,30 @@
         function closeProductModal() {
             const modal = document.getElementById('productModal');
             if (modal) modal.style.display = 'none';
+            hideAddProductForm();
+        }
+
+        function showAddProductForm() {
+            if (!guardPermission('index.edit', 'Bạn không có quyền thêm thành phẩm.')) return;
+            const wrap = document.getElementById('addProductForm');
+            if (!wrap) return;
+
+            const maxStt = products.reduce((max, p) => Math.max(max, Number(p.stt) || 0), 0);
+            document.getElementById('addProductStt').value = String(maxStt + 1);
+            document.getElementById('addProductMaSP').value = '';
+            document.getElementById('addProductTenTP').value = '';
+
+            wrap.classList.remove('hidden');
+            setTimeout(() => {
+                const firstInput = document.getElementById('addProductMaSP');
+                if (firstInput) firstInput.focus();
+            }, 0);
+        }
+
+        function hideAddProductForm() {
+            const wrap = document.getElementById('addProductForm');
+            if (!wrap) return;
+            wrap.classList.add('hidden');
         }
 
         function renderProductModalList(list = []) {
@@ -620,8 +674,13 @@
             if (!tbody) return;
             tbody.innerHTML = '';
 
+            const selectAllCheckbox = document.getElementById('selectAllProductsCheckbox');
+            if (selectAllCheckbox) {
+                selectAllCheckbox.checked = false;
+            }
+
             if (!list.length) {
-                tbody.innerHTML = `<tr><td colspan="3" class="px-3 py-6 text-center text-gray-500">Chưa có dữ liệu thành phẩm.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="4" class="px-3 py-6 text-center text-gray-500">Chưa có dữ liệu thành phẩm.</td></tr>`;
                 return;
             }
 
@@ -630,10 +689,25 @@
                 const isSelected = selectedProductModalId && prod.id === selectedProductModalId;
                 tr.className = `border-b cursor-pointer hover:bg-indigo-50 ${isSelected ? 'bg-indigo-100' : ''}`;
                 tr.innerHTML = `
+                    <td class="px-3 py-2">
+                        <input type="checkbox" class="product-delete-checkbox" data-id="${escapeHtml(prod.id || '')}" ${selectedProductDeleteIds.has(prod.id) ? 'checked' : ''}>
+                    </td>
                     <td class="px-3 py-2">${escapeHtml(prod.stt || '')}</td>
                     <td class="px-3 py-2 font-mono font-semibold">${escapeHtml(prod.maSP || '')}</td>
                     <td class="px-3 py-2">${escapeHtml(prod.tenTP || '')}</td>
                 `;
+                const checkbox = tr.querySelector('.product-delete-checkbox');
+                if (checkbox) {
+                    checkbox.addEventListener('click', (event) => {
+                        event.stopPropagation();
+                    });
+                    checkbox.addEventListener('change', (event) => {
+                        const id = String(event.target.getAttribute('data-id') || '');
+                        if (!id) return;
+                        if (event.target.checked) selectedProductDeleteIds.add(id);
+                        else selectedProductDeleteIds.delete(id);
+                    });
+                }
                 tr.addEventListener('click', () => selectProductFromModal(prod));
                 tr.addEventListener('dblclick', () => {
                     selectProductFromModal(prod);
@@ -641,6 +715,16 @@
                 });
                 tbody.appendChild(tr);
             });
+        }
+
+        function toggleSelectAllProducts(checked) {
+            const ids = getFilteredProducts().map((prod) => prod.id).filter(Boolean);
+            if (checked) {
+                ids.forEach((id) => selectedProductDeleteIds.add(id));
+            } else {
+                ids.forEach((id) => selectedProductDeleteIds.delete(id));
+            }
+            renderProductModalList(getFilteredProducts());
         }
 
         function filterProductModalList() {
@@ -694,9 +778,9 @@
             if (!guardPermission('index.edit', 'Bạn không có quyền thêm thành phẩm.')) return;
             if (!db) return;
 
-            const maSP = String(prompt('Nhập Mã SP mới:') || '').trim();
+            const maSP = String(document.getElementById('addProductMaSP')?.value || '').trim();
             if (!maSP) return;
-            const tenTP = String(prompt('Nhập Tên thành phẩm:') || '').trim();
+            const tenTP = String(document.getElementById('addProductTenTP')?.value || '').trim();
             if (!tenTP) {
                 alert('Tên thành phẩm không được để trống.');
                 return;
@@ -709,8 +793,9 @@
             }
 
             const maxStt = products.reduce((max, p) => Math.max(max, Number(p.stt) || 0), 0);
+            const inputStt = parseInt(document.getElementById('addProductStt')?.value || '', 10);
             const payload = {
-                stt: maxStt + 1,
+                stt: Number.isFinite(inputStt) && inputStt > 0 ? inputStt : (maxStt + 1),
                 maSP,
                 tenTP,
                 timestamp: new Date().toISOString()
@@ -718,6 +803,7 @@
 
             try {
                 await db.collection('thanhpham').add(payload);
+                hideAddProductForm();
                 alert('✅ Đã thêm thành phẩm mới.');
             } catch (error) {
                 alert('Lỗi thêm thành phẩm: ' + (error.message || error));
@@ -728,9 +814,30 @@
             if (!guardPermission('index.edit', 'Bạn không có quyền xóa thành phẩm.')) return;
             if (!db) return;
 
+            const checkedProducts = products.filter((item) => item.id && selectedProductDeleteIds.has(item.id));
+            if (checkedProducts.length > 0) {
+                if (!confirm(`Xóa ${checkedProducts.length} thành phẩm đã tích chọn?`)) return;
+
+                try {
+                    const batch = db.batch();
+                    checkedProducts.forEach((item) => {
+                        batch.delete(db.collection('thanhpham').doc(item.id));
+                    });
+                    await batch.commit();
+
+                    selectedProductDeleteIds.clear();
+                    selectedProductModalId = '';
+                    if (selectedIndex >= 0) selectedIndex = -1;
+                    alert(`✅ Đã xóa ${checkedProducts.length} thành phẩm.`);
+                } catch (error) {
+                    alert('Lỗi xóa thành phẩm: ' + (error.message || error));
+                }
+                return;
+            }
+
             const prod = products.find((item) => item.id === selectedProductModalId);
             if (!prod) {
-                alert('Vui lòng chọn một thành phẩm để xóa.');
+                alert('Vui lòng tích chọn hoặc chọn một thành phẩm để xóa.');
                 return;
             }
 
@@ -742,6 +849,7 @@
                     selectedIndex = -1;
                 }
                 selectedProductModalId = '';
+                selectedProductDeleteIds.delete(prod.id);
                 alert('✅ Đã xóa thành phẩm.');
             } catch (error) {
                 alert('Lỗi xóa thành phẩm: ' + (error.message || error));
