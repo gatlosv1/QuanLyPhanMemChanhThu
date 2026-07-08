@@ -65,7 +65,7 @@
           <button class="rounded-xl border border-slate-200 bg-white p-2.5 text-slate-500 transition hover:border-brand-500/40 hover:text-brand-500">
             <i data-lucide="bell" class="h-5 w-5"></i>
           </button>
-          <div class="h-10 w-10 rounded-2xl bg-gradient-to-br from-brand-500 to-orange-400 shadow-soft"></div>
+          <img src="image/logo.png" alt="Logo" class="h-10 w-10 rounded-2xl border border-slate-200 object-cover shadow-soft" />
         </div>
       </div>
     </header>
@@ -198,6 +198,63 @@
           </form>
         </div>
 
+        <div class="mb-4 flex flex-wrap gap-2">
+          <button id="toggleAccountListBtn" type="button" class="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-brand-500 hover:text-brand-600">Xem danh sách tài khoản</button>
+          <button id="toggleDevCredentialBtn" type="button" class="hidden inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-brand-500 hover:text-brand-600">Xem quản lý mật khẩu (Dev)</button>
+        </div>
+
+        <div id="accountListSection" class="mb-6 hidden rounded-2xl border border-slate-200 bg-slate-50 p-6">
+          <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
+            <h3 class="text-lg font-semibold">Danh Sách Tài Khoản</h3>
+            <button id="refreshAccountListBtn" type="button" class="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-brand-500 hover:text-brand-600">
+              <i data-lucide="refresh-cw" class="h-4 w-4"></i>
+              Làm Mới
+            </button>
+          </div>
+          <div id="accountListMessage" class="mb-3 hidden rounded-xl p-3 text-sm"></div>
+          <div class="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+            <table class="min-w-full text-sm">
+              <thead class="bg-slate-50 text-left text-slate-600">
+                <tr>
+                  <th class="px-3 py-2 font-semibold">Tên Đăng Nhập</th>
+                  <th class="px-3 py-2 font-semibold">Vai Trò</th>
+                  <th class="px-3 py-2 font-semibold">Trang Được Phép</th>
+                  <th class="px-3 py-2 font-semibold">Người Tạo</th>
+                  <th class="px-3 py-2 font-semibold">Ngày Tạo</th>
+                  <th class="px-3 py-2 font-semibold">Hành Động</th>
+                </tr>
+              </thead>
+              <tbody id="accountListTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div id="devCredentialSection" class="mb-6 hidden rounded-2xl border border-slate-200 bg-slate-50 p-6">
+          <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
+            <h3 class="text-lg font-semibold">Quản Lý Tài Khoản &amp; Mật Khẩu (Dev)</h3>
+            <button id="refreshDevCredentialsBtn" type="button" class="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:border-brand-500 hover:text-brand-600">
+              <i data-lucide="refresh-cw" class="h-4 w-4"></i>
+              Làm Mới
+            </button>
+          </div>
+          <p class="mb-3 text-sm text-slate-600">Xem mật khẩu hiện tại (nếu có) và đổi mật khẩu trực tiếp cho từng tài khoản.</p>
+          <div id="devCredentialMessage" class="mb-3 hidden rounded-xl p-3 text-sm"></div>
+          <div class="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+            <table class="min-w-full text-sm">
+              <thead class="bg-slate-50 text-left text-slate-600">
+                <tr>
+                  <th class="px-3 py-2 font-semibold">Tài Khoản</th>
+                  <th class="px-3 py-2 font-semibold">Vai Trò</th>
+                  <th class="px-3 py-2 font-semibold">Mật Khẩu Hiện Tại</th>
+                  <th class="px-3 py-2 font-semibold">Mật Khẩu Mới</th>
+                  <th class="px-3 py-2 font-semibold">Hành Động</th>
+                </tr>
+              </thead>
+              <tbody id="devCredentialTableBody"></tbody>
+            </table>
+          </div>
+        </div>
+
         <div class="mb-6 rounded-2xl border border-slate-200 bg-slate-50 p-6">
           <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
             <h3 class="text-lg font-semibold">Backup Toàn Bộ Hệ Thống</h3>
@@ -296,6 +353,16 @@
         const uploadBackupBtn = document.getElementById('uploadBackupBtn');
         const backupFileInput = document.getElementById('backupFileInput');
         const backupMessage = document.getElementById('backupMessage');
+        const toggleAccountListBtn = document.getElementById('toggleAccountListBtn');
+        const toggleDevCredentialBtn = document.getElementById('toggleDevCredentialBtn');
+        const accountListSection = document.getElementById('accountListSection');
+        const accountListMessage = document.getElementById('accountListMessage');
+        const accountListTableBody = document.getElementById('accountListTableBody');
+        const refreshAccountListBtn = document.getElementById('refreshAccountListBtn');
+        const devCredentialSection = document.getElementById('devCredentialSection');
+        const devCredentialMessage = document.getElementById('devCredentialMessage');
+        const devCredentialTableBody = document.getElementById('devCredentialTableBody');
+        const refreshDevCredentialsBtn = document.getElementById('refreshDevCredentialsBtn');
         const backupCollections = [
           'accounts',
           'thanhpham',
@@ -326,6 +393,8 @@
           'manager.view': 'Xem trang quản lý',
           'manager.createAccount': 'Tạo tài khoản',
           'manager.manageAccounts': 'Quản trị tài khoản',
+          'manager.viewCredentials': 'Xem tài khoản/mật khẩu',
+          'manager.changePassword': 'Đổi mật khẩu tài khoản',
           'manager.backup': 'Tạo/khôi phục backup hệ thống'
         };
         const pageEditPermissionKeyMap = {
@@ -435,6 +504,227 @@
           backupMessage.className = isError
             ? 'mt-3 text-sm text-red-700'
             : 'mt-3 text-sm text-slate-600';
+        }
+
+        function setDevCredentialMessage(text, isError = false) {
+          if (!devCredentialMessage) return;
+          if (!text) {
+            devCredentialMessage.classList.add('hidden');
+            devCredentialMessage.textContent = '';
+            devCredentialMessage.className = 'mb-3 hidden rounded-xl p-3 text-sm';
+            return;
+          }
+
+          devCredentialMessage.classList.remove('hidden');
+          devCredentialMessage.className = isError
+            ? 'mb-3 rounded-xl bg-red-50 p-3 text-sm text-red-700'
+            : 'mb-3 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-700';
+          devCredentialMessage.textContent = text;
+        }
+
+        function setAccountListMessage(text, isError = false) {
+          if (!accountListMessage) return;
+          if (!text) {
+            accountListMessage.classList.add('hidden');
+            accountListMessage.textContent = '';
+            accountListMessage.className = 'mb-3 hidden rounded-xl p-3 text-sm';
+            return;
+          }
+
+          accountListMessage.classList.remove('hidden');
+          accountListMessage.className = isError
+            ? 'mb-3 rounded-xl bg-red-50 p-3 text-sm text-red-700'
+            : 'mb-3 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-700';
+          accountListMessage.textContent = text;
+        }
+
+        function setToggleLabel(button, isOpen, openText, closeText) {
+          if (!button) return;
+          button.textContent = isOpen ? closeText : openText;
+        }
+
+        function escapeHtml(value) {
+          return String(value || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+        }
+
+        function formatDateTime(value) {
+          if (!value) return '-';
+          const parsed = new Date(value);
+          if (Number.isNaN(parsed.getTime())) return String(value);
+          return parsed.toLocaleString('vi-VN');
+        }
+
+        async function loadAccountList() {
+          if (!accountListTableBody) return;
+
+          setAccountListMessage('Đang tải danh sách tài khoản...');
+          try {
+            const { db } = await getManagerFirebase();
+            const snapshot = await db.collection('accounts').get();
+            const rows = [];
+            snapshot.forEach((doc) => {
+              const data = doc.data() || {};
+              rows.push({ id: doc.id, ...data });
+            });
+
+            rows.sort((a, b) => String(a.username || '').localeCompare(String(b.username || '')));
+
+            if (!rows.length) {
+              accountListTableBody.innerHTML = '<tr><td colspan="6" class="px-3 py-6 text-center text-slate-500">Chưa có tài khoản nào.</td></tr>';
+              setAccountListMessage('Chưa có dữ liệu tài khoản.');
+              return;
+            }
+
+            accountListTableBody.innerHTML = rows.map((account) => {
+              const username = String(account.username || '').trim();
+              const role = String(account.role || 'staff').trim();
+              const isCurrentAccount = username.toLowerCase() === String(currentUser?.username || '').toLowerCase();
+              const isProtectedAdmin = role === 'admin';
+              const canDelete = !isCurrentAccount && !isProtectedAdmin;
+              const actionButton = canDelete
+                ? `<button type="button" class="delete-account-btn rounded-lg bg-red-600 px-3 py-1.5 font-semibold text-white transition hover:bg-red-700" data-account-id="${escapeHtml(account.id)}" data-username="${escapeHtml(username)}" data-role="${escapeHtml(role)}">Xóa</button>`
+                : `<span class="inline-flex rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-500">${isCurrentAccount ? 'Tài khoản hiện tại' : 'Giữ admin'}</span>`;
+
+              return `
+                <tr class="border-t border-slate-100">
+                  <td class="px-3 py-2 font-medium text-slate-900">${escapeHtml(username)}</td>
+                  <td class="px-3 py-2 text-slate-700">${escapeHtml(role)}</td>
+                  <td class="px-3 py-2 text-slate-700">${escapeHtml(account.page || '-')}</td>
+                  <td class="px-3 py-2 text-slate-700">${escapeHtml(account.createdBy || '-')}</td>
+                  <td class="px-3 py-2 text-slate-700">${escapeHtml(formatDateTime(account.createdAt))}</td>
+                  <td class="px-3 py-2 text-slate-700">${actionButton}</td>
+                </tr>
+              `;
+            }).join('');
+
+            setAccountListMessage(`Đã tải ${rows.length} tài khoản.`);
+          } catch (error) {
+            setAccountListMessage('Lỗi tải danh sách tài khoản: ' + (error.message || error), true);
+          }
+        }
+
+        async function deleteAccountById(accountId, username, role) {
+          const normalizedUsername = String(username || '').trim();
+          const normalizedRole = String(role || '').trim();
+          const currentUsername = String(currentUser?.username || '').trim();
+
+          if (!accountId) {
+            setAccountListMessage('Không xác định được tài khoản để xóa.', true);
+            return;
+          }
+
+          if (normalizedUsername.toLowerCase() === currentUsername.toLowerCase()) {
+            setAccountListMessage('Không thể xóa tài khoản đang đăng nhập.', true);
+            return;
+          }
+
+          if (normalizedRole === 'admin') {
+            setAccountListMessage('Không thể xóa tài khoản admin tại đây.', true);
+            return;
+          }
+
+          if (!confirm(`Xác nhận xóa tài khoản ${normalizedUsername}?`)) return;
+
+          try {
+            const { db } = await getManagerFirebase();
+            await db.collection('accounts').doc(accountId).delete();
+            await window.refreshAuthAccounts();
+            await loadAccountList();
+            if (isDev && devCredentialSection && !devCredentialSection.classList.contains('hidden')) {
+              await loadDevCredentials();
+            }
+            setAccountListMessage(`Đã xóa tài khoản ${normalizedUsername}.`);
+          } catch (error) {
+            setAccountListMessage('Lỗi xóa tài khoản: ' + (error.message || error), true);
+          }
+        }
+
+        async function loadDevCredentials() {
+          if (!isDev || !devCredentialTableBody) return;
+
+          setDevCredentialMessage('Đang tải danh sách tài khoản...');
+
+          try {
+            const { db } = await getManagerFirebase();
+            const snapshot = await db.collection('accounts').get();
+            const rows = [];
+
+            snapshot.forEach((doc) => {
+              const data = doc.data() || {};
+              rows.push({ id: doc.id, ...data });
+            });
+
+            rows.sort((a, b) => String(a.username || '').localeCompare(String(b.username || '')));
+
+            if (!rows.length) {
+              devCredentialTableBody.innerHTML = '<tr><td colspan="5" class="px-3 py-6 text-center text-slate-500">Không có tài khoản nào.</td></tr>';
+              setDevCredentialMessage('Không tìm thấy dữ liệu tài khoản.', true);
+              return;
+            }
+
+            devCredentialTableBody.innerHTML = rows.map((account) => {
+              const currentPassword = account.password
+                ? escapeHtml(account.password)
+                : '<span class="text-slate-400">(Chỉ có passwordHash)</span>';
+              return `
+                <tr class="border-t border-slate-100 align-top">
+                  <td class="px-3 py-2 font-medium text-slate-900">${escapeHtml(account.username)}</td>
+                  <td class="px-3 py-2 text-slate-700">${escapeHtml(account.role || 'staff')}</td>
+                  <td class="px-3 py-2 text-slate-700 break-all">${currentPassword}</td>
+                  <td class="px-3 py-2">
+                    <input type="text" class="dev-new-password w-full rounded-lg border border-slate-200 px-2 py-1.5" data-account-id="${escapeHtml(account.id)}" placeholder="Nhập mật khẩu mới" />
+                  </td>
+                  <td class="px-3 py-2">
+                    <button type="button" class="dev-update-password-btn rounded-lg bg-brand-500 px-3 py-1.5 font-semibold text-white transition hover:bg-brand-600" data-account-id="${escapeHtml(account.id)}" data-username="${escapeHtml(account.username)}">Cập Nhật</button>
+                  </td>
+                </tr>
+              `;
+            }).join('');
+
+            setDevCredentialMessage('Đã tải danh sách tài khoản thành công.');
+          } catch (error) {
+            setDevCredentialMessage('Lỗi tải tài khoản: ' + (error.message || error), true);
+          }
+        }
+
+        async function updateAccountPassword(accountId, username, newPassword) {
+          if (!isDev) {
+            setDevCredentialMessage('Bạn không có quyền đổi mật khẩu tài khoản.', true);
+            return;
+          }
+
+          if (!accountId || !newPassword) {
+            setDevCredentialMessage('Vui lòng nhập mật khẩu mới hợp lệ.', true);
+            return;
+          }
+
+          if (newPassword.length < 4) {
+            setDevCredentialMessage('Mật khẩu mới cần tối thiểu 4 ký tự.', true);
+            return;
+          }
+
+          try {
+            const { db } = await getManagerFirebase();
+            const passwordHash = await hashPassword(newPassword);
+
+            await db.collection('accounts').doc(accountId).set({
+              password: newPassword,
+              passwordHash,
+              updatedAt: new Date().toISOString(),
+              updatedBy: currentUser.username
+            }, { merge: true });
+
+            await window.refreshAuthAccounts();
+            setDevCredentialMessage(`Đã đổi mật khẩu cho tài khoản ${username}.`);
+            await loadDevCredentials();
+          } catch (error) {
+            setDevCredentialMessage('Lỗi đổi mật khẩu: ' + (error.message || error), true);
+          }
         }
 
         async function getManagerFirebase() {
@@ -615,6 +905,10 @@
           return;
         }
 
+        if (accountListSection) {
+          accountListSection.classList.add('hidden');
+        }
+
         // Admin cannot grant/create dev accounts.
         if (newRoleSelect && isAdmin) {
           const devOption = Array.from(newRoleSelect.options).find((opt) => opt.value === 'dev');
@@ -630,6 +924,17 @@
           if (downloadBackupBtn) downloadBackupBtn.style.display = 'none';
           if (uploadBackupBtn) uploadBackupBtn.style.display = 'none';
         }
+
+        if (devCredentialSection) {
+          devCredentialSection.classList.toggle('hidden', !isDev);
+        }
+
+        if (toggleDevCredentialBtn) {
+          toggleDevCredentialBtn.classList.toggle('hidden', !isDev);
+        }
+
+        setToggleLabel(toggleAccountListBtn, false, 'Xem danh sách tài khoản', 'Ẩn danh sách tài khoản');
+        setToggleLabel(toggleDevCredentialBtn, false, 'Xem quản lý mật khẩu (Dev)', 'Ẩn quản lý mật khẩu (Dev)');
 
         if (showRegisterBtn) {
           showRegisterBtn.addEventListener('click', () => {
@@ -679,6 +984,8 @@
           registerForm.addEventListener('submit', async (event) => {
             event.preventDefault();
             const username = document.getElementById('newUsername').value.trim();
+            const usernameLower = username.toLowerCase();
+            const accountDocId = usernameLower.replace(/[^a-z0-9._-]/g, '_');
             const password = document.getElementById('newPassword').value;
             const role = document.getElementById('newRole').value;
             const page = document.getElementById('newPage').value;
@@ -699,8 +1006,9 @@
                 firebase.initializeApp(firebaseConfig, appName);
               }
               const db = firebase.app(appName).firestore();
-              const existingSnap = await db.collection('accounts').where('username', '==', username).get();
-              if (!existingSnap.empty) {
+              const existingByLowerSnap = await db.collection('accounts').where('usernameLower', '==', usernameLower).limit(1).get();
+              const existingByDocId = await db.collection('accounts').doc(accountDocId).get();
+              if (!existingByLowerSnap.empty || existingByDocId.exists) {
                 registerMessage.classList.remove('hidden');
                 registerMessage.className = 'mb-4 rounded-2xl bg-red-50 p-4 text-sm text-red-700';
                 registerMessage.textContent = '❌ Tên đăng nhập đã tồn tại.';
@@ -716,8 +1024,10 @@
                 return;
               }
 
-              await db.collection('accounts').add({
+              await db.collection('accounts').doc(accountDocId).set({
                 username,
+                usernameLower,
+                password,
                 passwordHash,
                 role,
                 page,
@@ -728,9 +1038,10 @@
                 label: page,
                 createdAt: new Date().toISOString(),
                 createdBy: currentUser.username
-              });
+              }, { merge: false });
 
               await window.refreshAuthAccounts();
+              await loadAccountList();
               registerForm.reset();
               registerForm.classList.add('hidden');
               registerMessage.classList.remove('hidden');
@@ -792,6 +1103,69 @@
 
         if (downloadBackupBtn) {
           downloadBackupBtn.addEventListener('click', downloadSystemBackup);
+        }
+
+        if (refreshAccountListBtn) {
+          refreshAccountListBtn.addEventListener('click', () => {
+            loadAccountList();
+          });
+        }
+
+        if (accountListTableBody) {
+          accountListTableBody.addEventListener('click', async (event) => {
+            const target = event.target;
+            if (!target || !target.classList || !target.classList.contains('delete-account-btn')) return;
+
+            const accountId = target.getAttribute('data-account-id') || '';
+            const username = target.getAttribute('data-username') || '';
+            const role = target.getAttribute('data-role') || '';
+            await deleteAccountById(accountId, username, role);
+          });
+        }
+
+        if (toggleAccountListBtn && accountListSection) {
+          toggleAccountListBtn.addEventListener('click', async () => {
+            const isHidden = accountListSection.classList.contains('hidden');
+            if (isHidden) {
+              accountListSection.classList.remove('hidden');
+              await loadAccountList();
+            } else {
+              accountListSection.classList.add('hidden');
+            }
+            setToggleLabel(toggleAccountListBtn, isHidden, 'Xem danh sách tài khoản', 'Ẩn danh sách tài khoản');
+          });
+        }
+
+        if (toggleDevCredentialBtn && devCredentialSection) {
+          toggleDevCredentialBtn.addEventListener('click', async () => {
+            const isHidden = devCredentialSection.classList.contains('hidden');
+            if (isHidden) {
+              devCredentialSection.classList.remove('hidden');
+              await loadDevCredentials();
+            } else {
+              devCredentialSection.classList.add('hidden');
+            }
+            setToggleLabel(toggleDevCredentialBtn, isHidden, 'Xem quản lý mật khẩu (Dev)', 'Ẩn quản lý mật khẩu (Dev)');
+          });
+        }
+
+        if (refreshDevCredentialsBtn) {
+          refreshDevCredentialsBtn.addEventListener('click', () => {
+            loadDevCredentials();
+          });
+        }
+
+        if (devCredentialTableBody) {
+          devCredentialTableBody.addEventListener('click', async (event) => {
+            const target = event.target;
+            if (!target || !target.classList || !target.classList.contains('dev-update-password-btn')) return;
+
+            const accountId = target.getAttribute('data-account-id') || '';
+            const username = target.getAttribute('data-username') || '';
+            const input = devCredentialTableBody.querySelector(`.dev-new-password[data-account-id="${accountId}"]`);
+            const newPassword = input ? input.value.trim() : '';
+            await updateAccountPassword(accountId, username, newPassword);
+          });
         }
 
         if (uploadBackupBtn && backupFileInput) {

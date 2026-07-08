@@ -29,6 +29,8 @@ const pagePermissionTemplates = {
     'manager.view': true,
     'manager.createAccount': true,
     'manager.manageAccounts': true,
+    'manager.viewCredentials': false,
+    'manager.changePassword': false,
     'manager.backup': false
   }
 };
