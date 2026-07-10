@@ -59,6 +59,8 @@
             >
           </div>
 
+          <div id="rateLimitNotice" class="hidden mb-4 p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-800 text-sm font-medium"></div>
+
           <div class="mb-6">
             <label for="password" class="block text-sm font-semibold text-slate-700 mb-2">Mật khẩu</label>
             <input 
@@ -96,12 +98,80 @@
     <script>
       const params = new URLSearchParams(window.location.search);
       const redirect = params.get('redirect') || '';
+      const usernameInput = document.getElementById('username');
+      const passwordInput = document.getElementById('password');
+      const loginForm = document.getElementById('loginForm');
+      const message = document.getElementById('message');
+      const rateLimitNotice = document.getElementById('rateLimitNotice');
+      const submitButton = loginForm.querySelector('button[type="submit"]');
+      let loginLockTimer = null;
 
-      document.getElementById('loginForm').addEventListener('submit', async function(event) {
+      function formatRemainingSeconds(ms) {
+        return Math.max(1, Math.ceil(ms / 1000));
+      }
+
+      function setLoginFormLocked(locked, noticeText) {
+        usernameInput.disabled = locked;
+        passwordInput.disabled = locked;
+        submitButton.disabled = locked;
+        submitButton.classList.toggle('opacity-60', locked);
+        submitButton.classList.toggle('cursor-not-allowed', locked);
+
+        if (noticeText) {
+          rateLimitNotice.textContent = noticeText;
+          rateLimitNotice.classList.remove('hidden');
+        } else {
+          rateLimitNotice.textContent = '';
+          rateLimitNotice.classList.add('hidden');
+        }
+      }
+
+      function refreshLoginRateLimitState() {
+        if (!window.getLoginRateLimitStatus) return;
+        const username = usernameInput.value.trim() || (window.getLastLoginUsername ? window.getLastLoginUsername() : '');
+        if (!username) {
+          setLoginFormLocked(false, '');
+          return;
+        }
+
+        const status = window.getLoginRateLimitStatus(username);
+        if (!status.blocked) {
+          setLoginFormLocked(false, '');
+          return;
+        }
+
+        const seconds = formatRemainingSeconds(status.retryAfterMs);
+        setLoginFormLocked(true, `Bạn đã thử đăng nhập quá nhiều lần. Vui lòng chờ ${seconds} giây rồi thử lại.`);
+
+        if (loginLockTimer) clearInterval(loginLockTimer);
+        loginLockTimer = setInterval(function() {
+          const nextStatus = window.getLoginRateLimitStatus(username);
+          if (!nextStatus.blocked) {
+            clearInterval(loginLockTimer);
+            loginLockTimer = null;
+            setLoginFormLocked(false, '');
+            return;
+          }
+
+          const nextSeconds = formatRemainingSeconds(nextStatus.retryAfterMs);
+          rateLimitNotice.textContent = `Bạn đã thử đăng nhập quá nhiều lần. Vui lòng chờ ${nextSeconds} giây rồi thử lại.`;
+        }, 1000);
+      }
+
+      if (window.getLastLoginUsername) {
+        const lastUsername = window.getLastLoginUsername();
+        if (lastUsername && !usernameInput.value.trim()) {
+          usernameInput.value = lastUsername;
+        }
+      }
+
+      usernameInput.addEventListener('input', refreshLoginRateLimitState);
+      refreshLoginRateLimitState();
+
+      loginForm.addEventListener('submit', async function(event) {
         event.preventDefault();
-        const username = document.getElementById('username').value.trim();
-        const password = document.getElementById('password').value.trim();
-        const message = document.getElementById('message');
+        const username = usernameInput.value.trim();
+        const password = passwordInput.value.trim();
 
         if (!username || !password) {
           message.textContent = 'Vui lòng nhập đầy đủ tên đăng nhập và mật khẩu.';

@@ -1,4 +1,8 @@
 let authAccountsCache = [];
+const LOGIN_RATE_LIMIT_WINDOW_MS = 5 * 60 * 1000;
+const LOGIN_RATE_LIMIT_MAX_FAILURES = 5;
+const LOGIN_RATE_LIMIT_STORAGE_KEY = 'authLoginRateLimit';
+const LOGIN_LAST_USERNAME_KEY = 'authLastLoginUsername';
 
 const pagePermissionTemplates = {
   'index.html': {
@@ -50,6 +54,135 @@ function normalizePermissions(account) {
   const defaults = buildDefaultPermissions(account.page, account.role);
   const raw = account.permissions && typeof account.permissions === 'object' ? account.permissions : {};
   return { ...defaults, ...raw };
+}
+
+function getLoginRateLimitKey(username) {
+  return String(username || '').trim().toLowerCase();
+}
+
+function readLoginRateLimitState() {
+  try {
+    return JSON.parse(localStorage.getItem(LOGIN_RATE_LIMIT_STORAGE_KEY) || '{}') || {};
+  } catch (error) {
+    return {};
+  }
+}
+
+function writeLoginRateLimitState(state) {
+  try {
+    localStorage.setItem(LOGIN_RATE_LIMIT_STORAGE_KEY, JSON.stringify(state || {}));
+  } catch (error) {
+    // Ignore storage failures in restricted browser contexts.
+  }
+}
+
+function pruneLoginAttempts(attempts, now = Date.now()) {
+  return (Array.isArray(attempts) ? attempts : []).filter((timestamp) => {
+    return Number.isFinite(timestamp) && now - timestamp < LOGIN_RATE_LIMIT_WINDOW_MS;
+  });
+}
+
+function getLoginRateLimitStatus(username) {
+  const key = getLoginRateLimitKey(username);
+  if (!key) {
+    return { blocked: false, retryAfterMs: 0, remainingAttempts: LOGIN_RATE_LIMIT_MAX_FAILURES };
+  }
+
+  const state = readLoginRateLimitState();
+  const now = Date.now();
+  const attempts = pruneLoginAttempts(state[key], now);
+  state[key] = attempts;
+  writeLoginRateLimitState(state);
+
+  if (attempts.length >= LOGIN_RATE_LIMIT_MAX_FAILURES) {
+    const oldestAttempt = attempts[0];
+    const retryAfterMs = Math.max(0, LOGIN_RATE_LIMIT_WINDOW_MS - (now - oldestAttempt));
+    return {
+      blocked: true,
+      retryAfterMs,
+      remainingAttempts: 0
+    };
+  }
+
+  return {
+    blocked: false,
+    retryAfterMs: 0,
+    remainingAttempts: LOGIN_RATE_LIMIT_MAX_FAILURES - attempts.length
+  };
+}
+
+function recordLoginFailure(username) {
+  const key = getLoginRateLimitKey(username);
+  if (!key) return getLoginRateLimitStatus(username);
+
+  const state = readLoginRateLimitState();
+  const now = Date.now();
+  const attempts = pruneLoginAttempts(state[key], now);
+  attempts.push(now);
+  state[key] = attempts;
+  writeLoginRateLimitState(state);
+  try {
+    localStorage.setItem(LOGIN_LAST_USERNAME_KEY, String(username || '').trim());
+  } catch (error) {
+    // Ignore storage failures in restricted browser contexts.
+  }
+
+  return getLoginRateLimitStatus(username);
+}
+
+function clearLoginFailures(username) {
+  const key = getLoginRateLimitKey(username);
+  if (!key) return;
+
+  const state = readLoginRateLimitState();
+  if (Object.prototype.hasOwnProperty.call(state, key)) {
+    delete state[key];
+    writeLoginRateLimitState(state);
+  }
+
+  try {
+    const lastUsername = String(localStorage.getItem(LOGIN_LAST_USERNAME_KEY) || '').trim().toLowerCase();
+    if (lastUsername === key) {
+      localStorage.removeItem(LOGIN_LAST_USERNAME_KEY);
+    }
+  } catch (error) {
+    // Ignore storage failures in restricted browser contexts.
+  }
+}
+
+function validateLoginInput(username, password) {
+  const normalizedUsername = typeof username === 'string' ? username.trim() : '';
+  const normalizedPassword = typeof password === 'string' ? password : '';
+
+  if (!normalizedUsername || !normalizedPassword) {
+    return { ok: false, message: 'Vui lòng nhập đầy đủ tên đăng nhập và mật khẩu.' };
+  }
+
+  if (normalizedUsername.length < 2 || normalizedUsername.length > 64) {
+    return { ok: false, message: 'Tên đăng nhập không hợp lệ.' };
+  }
+
+  if (normalizedPassword.length > 128) {
+    return { ok: false, message: 'Mật khẩu không hợp lệ.' };
+  }
+
+  if (/[<>]/.test(normalizedUsername) || /[<>]/.test(normalizedPassword)) {
+    return { ok: false, message: 'Dữ liệu đăng nhập không hợp lệ.' };
+  }
+
+  return {
+    ok: true,
+    username: normalizedUsername,
+    password: normalizedPassword
+  };
+}
+
+function getLastLoginUsername() {
+  try {
+    return String(localStorage.getItem(LOGIN_LAST_USERNAME_KEY) || '').trim();
+  } catch (error) {
+    return '';
+  }
 }
 
 function hasPermission(permissionKey) {
@@ -186,22 +319,48 @@ async function refreshAuthAccounts() {
 }
 
 async function loginUser(username, password) {
+  const validation = validateLoginInput(username, password);
+  if (!validation.ok) {
+    return { ok: false, message: validation.message };
+  }
+
+  const rateLimitStatus = getLoginRateLimitStatus(validation.username);
+  if (rateLimitStatus.blocked) {
+    const retryAfterSeconds = Math.max(1, Math.ceil(rateLimitStatus.retryAfterMs / 1000));
+    return {
+      ok: false,
+      message: `Bạn đã thử đăng nhập quá nhiều lần. Vui lòng chờ ${retryAfterSeconds} giây rồi thử lại.`
+    };
+  }
+
   const accounts = await getAuthAccounts(true);
   if (!accounts.length) {
     return { ok: false, message: 'Chưa có tài khoản đăng nhập hoặc không đọc được dữ liệu tài khoản từ Firebase.' };
   }
-  const account = accounts.find(item => item.username === username);
+
+  const account = accounts.find(item => item.username === validation.username);
   if (!account) {
+    recordLoginFailure(validation.username);
     return { ok: false, message: 'Tên đăng nhập hoặc mật khẩu không đúng.' };
   }
 
-  const candidateHash = await sha256(password);
-  const isLegacyPlaintext = typeof account.password === 'string' && account.password === password;
+  const candidateHash = await sha256(validation.password);
+  const isLegacyPlaintext = typeof account.password === 'string' && account.password === validation.password;
   const isHashMatch = typeof account.passwordHash === 'string' && account.passwordHash === candidateHash;
 
   if (!isLegacyPlaintext && !isHashMatch) {
+    const updatedRateLimit = recordLoginFailure(validation.username);
+    if (updatedRateLimit.blocked) {
+      const retryAfterSeconds = Math.max(1, Math.ceil(updatedRateLimit.retryAfterMs / 1000));
+      return {
+        ok: false,
+        message: `Bạn đã thử đăng nhập quá nhiều lần. Vui lòng chờ ${retryAfterSeconds} giây rồi thử lại.`
+      };
+    }
     return { ok: false, message: 'Tên đăng nhập hoặc mật khẩu không đúng.' };
   }
+
+  clearLoginFailures(validation.username);
 
   const session = {
     username: account.username,
@@ -272,6 +431,9 @@ window.getRuntimeConfig = getRuntimeConfig;
 window.getAuthAccounts = getAuthAccounts;
 window.refreshAuthAccounts = refreshAuthAccounts;
 window.loginUser = loginUser;
+window.validateLoginInput = validateLoginInput;
+window.getLoginRateLimitStatus = getLoginRateLimitStatus;
+window.getLastLoginUsername = getLastLoginUsername;
 window.requirePageAccess = requirePageAccess;
 window.goToManagementPage = goToManagementPage;
 window.logoutUser = logoutUser;

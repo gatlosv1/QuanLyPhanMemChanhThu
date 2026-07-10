@@ -120,6 +120,45 @@ function createContext(initialPath = '/dang-nhap.html') {
 });
 
 (async () => {
+  const { context } = createContext();
+  context.fetch = async () => ({ ok: true, json: async () => ({}) });
+  context.firebase = {
+    apps: [],
+    initializeApp: (_config, name = '[DEFAULT]') => {
+      const app = { name, firestore: () => ({ collection: () => ({ get: async () => ({ docs: [{ id: '1', data: () => ({ username: 'KhuSX', passwordHash: crypto.createHash('sha256').update('200695').digest('hex'), role: 'viewer', page: 'viewer.html' }) }] }) }) }) };
+      context.firebase.apps.push(app);
+      return app;
+    },
+    app: (name = '[DEFAULT]') => context.firebase.apps.find((item) => item.name === name)
+  };
+
+  const code = fs.readFileSync(path.join(__dirname, '..', 'auth.js'), 'utf8');
+  vm.runInContext(code, vm.createContext(context));
+
+  const validation = context.window.validateLoginInput(' ', 'secret');
+  if (validation.ok || validation.message !== 'Vui lòng nhập đầy đủ tên đăng nhập và mật khẩu.') {
+    throw new Error(`Expected empty username to fail validation, got: ${JSON.stringify(validation)}`);
+  }
+
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const result = await context.window.loginUser('KhuSX', 'wrong-password');
+    if (attempt < 4 && result.message.includes('quá nhiều lần')) {
+      throw new Error(`Rate limit triggered too early: ${JSON.stringify(result)}`);
+    }
+  }
+
+  const blockedResult = await context.window.loginUser('KhuSX', 'wrong-password');
+  if (blockedResult.ok || !blockedResult.message.includes('quá nhiều lần')) {
+    throw new Error(`Expected login rate limit to block after repeated failures, got: ${JSON.stringify(blockedResult)}`);
+  }
+
+  console.log('login validation and rate limit test passed');
+})().catch((error) => {
+  console.error(error.message);
+  process.exit(1);
+});
+
+(async () => {
   const { context } = createContext('/viewer.html');
   const code = fs.readFileSync(path.join(__dirname, '..', 'auth.js'), 'utf8');
   vm.runInContext(code, vm.createContext(context));

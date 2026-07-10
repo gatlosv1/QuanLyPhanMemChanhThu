@@ -29,11 +29,20 @@ function getAllowedOrigins() {
   return raw.split(',').map(item => item.trim()).filter(Boolean);
 }
 
+function isLocalDevOrigin(origin) {
+  try {
+    const url = new URL(origin);
+    return url.hostname === 'localhost' || url.hostname === '127.0.0.1' || url.hostname === '::1';
+  } catch (error) {
+    return false;
+  }
+}
+
 // Middleware
 const allowedOrigins = new Set(getAllowedOrigins());
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin || allowedOrigins.has(origin)) return callback(null, true);
+    if (!origin || allowedOrigins.has(origin) || isLocalDevOrigin(origin)) return callback(null, true);
     return callback(new Error('CORS blocked'));
   }
 }));
