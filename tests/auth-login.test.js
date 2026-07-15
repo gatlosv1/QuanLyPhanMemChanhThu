@@ -121,6 +121,37 @@ function createContext(initialPath = '/dang-nhap.html') {
 
 (async () => {
   const { context } = createContext();
+  context.fetch = async (url) => ({
+    ok: true,
+    json: async () => {
+      if (String(url).includes('/api/auth/accounts')) {
+        return [{ username: 'env-admin', password: 'env-secret', role: 'admin', page: 'quan-ly.html' }];
+      }
+      return {};
+    }
+  });
+  context.firebase = {
+    apps: [],
+    initializeApp: () => ({ firestore: () => ({ collection: () => ({ get: async () => ({ docs: [] }) }) }) }),
+    app: () => ({ firestore: () => ({ collection: () => ({ get: async () => ({ docs: [] }) }) }) })
+  };
+
+  const code = fs.readFileSync(path.join(__dirname, '..', 'auth.js'), 'utf8');
+  vm.runInContext(code, vm.createContext(context));
+
+  const result = await context.window.loginUser('env-admin', 'env-secret');
+  if (!result.ok) {
+    throw new Error(`Expected env fallback login to succeed, got: ${JSON.stringify(result)}`);
+  }
+
+  console.log('env fallback login test passed');
+})().catch((error) => {
+  console.error(error.message);
+  process.exit(1);
+});
+
+(async () => {
+  const { context } = createContext();
   context.fetch = async () => ({ ok: true, json: async () => ({}) });
   context.firebase = {
     apps: [],

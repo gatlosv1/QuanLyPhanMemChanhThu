@@ -3,6 +3,15 @@ const router = express.Router();
 const { getPool, mssql } = require('../db');
 const { validateQRPayload, authenticateRequest, authorizeRole } = require('../security');
 
+function getBootstrapAuthAccounts() {
+  try {
+    const parsed = JSON.parse(process.env.AUTH_ACCOUNTS_JSON || '[]');
+    return Array.isArray(parsed) ? parsed.filter((item) => item && typeof item === 'object') : [];
+  } catch (error) {
+    return [];
+  }
+}
+
 router.get('/config', (req, res) => {
   res.json({
     apiKey: process.env.FIREBASE_API_KEY || '',
@@ -14,6 +23,10 @@ router.get('/config', (req, res) => {
     appId: process.env.FIREBASE_APP_ID || '',
     measurementId: process.env.FIREBASE_MEASUREMENT_ID || ''
   });
+});
+
+router.get('/auth/accounts', (req, res) => {
+  res.json(getBootstrapAuthAccounts());
 });
 
 // Lưu QR code được tạo vào database

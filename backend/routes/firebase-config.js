@@ -36,10 +36,19 @@ function readConfigFromWindowOrProcess() {
 	return toFirebaseConfig(env || {});
 }
 
+function getBackendBaseUrl() {
+	if (typeof window === 'undefined' || !window.location) return '';
+	const origin = window.location.origin;
+	if (origin && origin !== 'null' && origin !== 'file://') {
+		return origin;
+	}
+	return 'http://localhost:3001';
+}
+
 async function fetchConfigFromBackend() {
 	if (typeof fetch === 'undefined') return null;
 	try {
-		const response = await fetch('/env.json', { cache: 'no-store' });
+		const response = await fetch(`${getBackendBaseUrl()}/env.json`, { cache: 'no-store' });
 		if (!response.ok) return null;
 		const env = await response.json();
 		if (typeof window !== 'undefined') {

@@ -266,11 +266,23 @@ function getPublicFirebaseConfig() {
 }
 
 async function getRuntimeConfig() {
+  if (window.getRuntimeConfig && window.getRuntimeConfig !== getRuntimeConfig) {
+    const runtimeConfig = await window.getRuntimeConfig();
+    return runtimeConfig && typeof runtimeConfig === 'object'
+      ? runtimeConfig
+      : getPublicFirebaseConfig();
+  }
+
   const config = await fetchJson('/api/config', null, 2500);
   return {
     ...getPublicFirebaseConfig(),
     ...(config && typeof config === 'object' ? config : {})
   };
+}
+
+async function getBackendAuthAccounts() {
+  const accounts = await fetchJson('/api/auth/accounts', [], 2500);
+  return Array.isArray(accounts) ? accounts : [];
 }
 
 async function getFirebaseAccounts() {
@@ -298,7 +310,11 @@ async function getAuthAccounts(forceRefresh = false) {
   }
 
   const firebaseAccounts = await getFirebaseAccounts();
-  const merged = Array.isArray(firebaseAccounts) ? firebaseAccounts : [];
+  const backendAccounts = await getBackendAuthAccounts();
+  const merged = [
+    ...(Array.isArray(backendAccounts) ? backendAccounts : []),
+    ...(Array.isArray(firebaseAccounts) ? firebaseAccounts : [])
+  ];
 
   const dedupedByUsername = new Map();
   merged.forEach((account) => {

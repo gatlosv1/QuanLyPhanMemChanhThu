@@ -5,6 +5,7 @@ const path = require('path');
 const cors = require('cors');
 const { connectDB } = require('./db');
 const apiRoutes = require('./routes/api');
+const { syncBootstrapAccountsToFirebase } = require('./firebase-bootstrap-sync');
 const { rateLimit } = require('./security');
 
 const app = express();
@@ -75,6 +76,13 @@ app.get('*', (req, res) => {
 
 // Start server
 async function start() {
+  try {
+    const syncResult = await syncBootstrapAccountsToFirebase();
+    console.log(`✓ Đồng bộ tài khoản bootstrap lên Firebase: ${syncResult.synced}/${syncResult.total}`);
+  } catch (err) {
+    console.warn('⚠️ Không thể đồng bộ tài khoản bootstrap lên Firebase:', err.message);
+  }
+
   try {
     await connectDB();
   } catch (err) {
