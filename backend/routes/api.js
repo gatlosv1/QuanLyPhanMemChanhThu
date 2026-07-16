@@ -1,6 +1,9 @@
 const express = require('express');
+const crypto = require('crypto');
 const router = express.Router();
 const { getPool, mssql } = require('../db');
+const { initializeApp, getApp, getApps } = require('firebase/app');
+const { getFirestore, collection, query, where, limit, getDocs, doc, getDoc } = require('firebase/firestore');
 const { validateQRPayload, authenticateRequest, authorizeRole } = require('../security');
 
 function getBootstrapAuthAccounts() {
@@ -10,6 +13,94 @@ function getBootstrapAuthAccounts() {
   } catch (error) {
     return [];
   }
+}
+
+function getFirebaseConfig() {
+  return {
+    apiKey: process.env.FIREBASE_API_KEY || '',
+    authDomain: process.env.FIREBASE_AUTH_DOMAIN || '',
+    databaseURL: process.env.FIREBASE_DATABASE_URL || '',
+    projectId: process.env.FIREBASE_PROJECT_ID || '',
+    storageBucket: process.env.FIREBASE_STORAGE_BUCKET || '',
+    messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID || '',
+    appId: process.env.FIREBASE_APP_ID || '',
+    measurementId: process.env.FIREBASE_MEASUREMENT_ID || ''
+  };
+}
+
+function getAuthFirebaseDb() {
+  const appName = 'auth-api';
+  const app = getApps().some((item) => item.name === appName)
+    ? getApp(appName)
+    : initializeApp(getFirebaseConfig(), appName);
+  return getFirestore(app);
+}
+
+function normalizeUsername(value) {
+  return String(value || '').trim();
+}
+
+function toUsernameLower(username) {
+  return normalizeUsername(username).toLowerCase();
+}
+
+function toAccountDocId(usernameLower) {
+  return String(usernameLower || '').replace(/[^a-z0-9._-]/g, '_');
+}
+
+function hashPassword(password) {
+  return crypto.createHash('sha256').update(String(password || ''), 'utf8').digest('hex');
+}
+
+function isPasswordMatch(account, password) {
+  if (!account || typeof account !== 'object') return false;
+  const plainMatch = typeof account.password === 'string' && account.password === password;
+  const hashMatch = typeof account.passwordHash === 'string' && account.passwordHash === hashPassword(password);
+  return plainMatch || hashMatch;
+}
+
+function sanitizeAccountForClient(account) {
+  return {
+    username: account.username,
+    role: account.role,
+    page: account.page,
+    label: account.label,
+    permissions: account.permissions && typeof account.permissions === 'object' ? account.permissions : {}
+  };
+}
+
+async function findFirebaseAccountByUsername(username) {
+  const usernameLower = toUsernameLower(username);
+  if (!usernameLower) return null;
+
+  const db = getAuthFirebaseDb();
+  const ref = doc(db, 'accounts', toAccountDocId(usernameLower));
+  const byDocId = await getDoc(ref);
+  if (byDocId.exists()) {
+    return { id: byDocId.id, ...byDocId.data() };
+  }
+
+  const byLower = await getDocs(query(
+    collection(db, 'accounts'),
+    where('usernameLower', '==', usernameLower),
+    limit(1)
+  ));
+  if (!byLower.empty) {
+    const item = byLower.docs[0];
+    return { id: item.id, ...item.data() };
+  }
+
+  const byUsername = await getDocs(query(
+    collection(db, 'accounts'),
+    where('username', '==', username),
+    limit(1)
+  ));
+  if (!byUsername.empty) {
+    const item = byUsername.docs[0];
+    return { id: item.id, ...item.data() };
+  }
+
+  return null;
 }
 
 router.get('/config', (req, res) => {
@@ -25,8 +116,35 @@ router.get('/config', (req, res) => {
   });
 });
 
-router.get('/auth/accounts', (req, res) => {
-  res.json(getBootstrapAuthAccounts());
+router.post('/auth/login', async (req, res) => {
+  const username = normalizeUsername(req.body?.username);
+  const password = String(req.body?.password || '');
+
+  if (!username || !password) {
+    return res.status(400).json({ ok: false, message: 'Vui lòng nhập đầy đủ tên đăng nhập và mật khẩu.' });
+  }
+
+  if (username.length < 2 || username.length > 64 || password.length > 128 || /[<>]/.test(username) || /[<>]/.test(password)) {
+    return res.status(400).json({ ok: false, message: 'Dữ liệu đăng nhập không hợp lệ.' });
+  }
+
+  let account = null;
+  try {
+    account = await findFirebaseAccountByUsername(username);
+  } catch (error) {
+    account = null;
+  }
+
+  if (!account) {
+    const usernameLower = toUsernameLower(username);
+    account = getBootstrapAuthAccounts().find((item) => toUsernameLower(item.username) === usernameLower) || null;
+  }
+
+  if (!account || !isPasswordMatch(account, password)) {
+    return res.status(401).json({ ok: false, message: 'Tên đăng nhập hoặc mật khẩu không đúng.' });
+  }
+
+  return res.json({ ok: true, account: sanitizeAccountForClient(account) });
 });
 
 // Lưu QR code được tạo vào database

@@ -1,7 +1,6 @@
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
-const crypto = require('crypto');
 
 class LocalStorageMock {
   constructor() {
@@ -27,19 +26,8 @@ function createContext(initialPath = '/dang-nhap.html') {
     sessionStorage,
     TextEncoder,
     URLSearchParams,
-    crypto: {
-      subtle: {
-        digest: async (algorithm, data) => {
-          if (algorithm !== 'SHA-256') throw new Error('Unsupported algorithm');
-          const buffer = Buffer.from(data);
-          const hash = crypto.createHash('sha256').update(buffer).digest();
-          return hash.buffer.slice(hash.byteOffset, hash.byteOffset + hash.byteLength);
-        }
-      }
-    },
     window: {
-      location: { pathname: initialPath, origin: 'http://localhost', href: `http://localhost${initialPath}` },
-      AUTH_ACCOUNTS: []
+      location: { pathname: initialPath, origin: 'http://localhost', href: `http://localhost${initialPath}` }
     },
     fetch: async () => ({ ok: false, json: async () => ({}) }),
     setTimeout,
@@ -52,19 +40,22 @@ function createContext(initialPath = '/dang-nhap.html') {
 
 (async () => {
   const { context } = createContext();
-  const hash = crypto.createHash('sha256').update('200695').digest('hex');
-  context.fetch = async () => ({
-    ok: true,
-    json: async () => ({})
-  });
-  context.firebase = {
-    apps: [],
-    initializeApp: (_config, name = '[DEFAULT]') => {
-      const app = { name, firestore: () => ({ collection: () => ({ get: async () => ({ docs: [{ id: '1', data: () => ({ username: 'KhuSX', passwordHash: hash, role: 'admin', page: 'quan-ly.html' }) }] }) }) }) };
-      context.firebase.apps.push(app);
-      return app;
-    },
-    app: (name = '[DEFAULT]') => context.firebase.apps.find((item) => item.name === name)
+  context.fetch = async (url, options = {}) => {
+    if (String(url).includes('/api/auth/login') && options.method === 'POST') {
+      return {
+        ok: true,
+        json: async () => ({
+          ok: true,
+          account: {
+            username: 'KhuSX',
+            role: 'admin',
+            page: 'quan-ly.html',
+            permissions: { '*': true }
+          }
+        })
+      };
+    }
+    return { ok: false, json: async () => ({}) };
   };
 
   const code = fs.readFileSync(path.join(__dirname, '..', 'auth.js'), 'utf8');
@@ -72,7 +63,7 @@ function createContext(initialPath = '/dang-nhap.html') {
 
   const result = await context.window.loginUser('KhuSX', '200695');
   if (!result.ok) {
-    throw new Error(`Expected login to succeed, got: ${JSON.stringify(result)}`);
+    throw new Error(`Expected backend login to succeed, got: ${JSON.stringify(result)}`);
   }
 
   const adminAccess = context.window.requirePageAccess('index.html');
@@ -80,7 +71,7 @@ function createContext(initialPath = '/dang-nhap.html') {
     throw new Error('Expected admin to access other pages');
   }
 
-  console.log('auth fallback login test passed');
+  console.log('backend login test passed');
 })().catch((error) => {
   console.error(error.message);
   process.exit(1);
@@ -88,24 +79,30 @@ function createContext(initialPath = '/dang-nhap.html') {
 
 (async () => {
   const { context } = createContext();
-  const hash = crypto.createHash('sha256').update('200695').digest('hex');
-  context.fetch = async () => ({ ok: true, json: async () => ({}) });
-  context.firebase = {
-    apps: [],
-    initializeApp: (_config, name = '[DEFAULT]') => {
-      const app = { name, firestore: () => ({ collection: () => ({ get: async () => ({ docs: [{ id: '1', data: () => ({ username: 'KhuSX', passwordHash: hash, role: 'viewer', page: 'viewer.html' }) }] }) }) }) };
-      context.firebase.apps.push(app);
-      return app;
-    },
-    app: (name = '[DEFAULT]') => context.firebase.apps.find((item) => item.name === name)
+  context.fetch = async (url, options = {}) => {
+    if (String(url).includes('/api/auth/login') && options.method === 'POST') {
+      return {
+        ok: true,
+        json: async () => ({
+          ok: true,
+          account: {
+            username: 'viewer',
+            role: 'viewer',
+            page: 'viewer.html',
+            permissions: { 'viewer.view': true }
+          }
+        })
+      };
+    }
+    return { ok: false, json: async () => ({}) };
   };
 
   const code = fs.readFileSync(path.join(__dirname, '..', 'auth.js'), 'utf8');
   vm.runInContext(code, vm.createContext(context));
 
-  const result = await context.window.loginUser('KhuSX', '200695');
+  const result = await context.window.loginUser('viewer', '123456');
   if (!result.ok) {
-    throw new Error(`Expected hash-based login to succeed, got: ${JSON.stringify(result)}`);
+    throw new Error(`Expected backend login to succeed, got: ${JSON.stringify(result)}`);
   }
 
   const safePage = context.window.resolvePostLoginPage('https://evil.example/phish', result.account.page);
@@ -121,46 +118,14 @@ function createContext(initialPath = '/dang-nhap.html') {
 
 (async () => {
   const { context } = createContext();
-  context.fetch = async (url) => ({
-    ok: true,
-    json: async () => {
-      if (String(url).includes('/api/auth/accounts')) {
-        return [{ username: 'env-admin', password: 'env-secret', role: 'admin', page: 'quan-ly.html' }];
-      }
-      return {};
+  context.fetch = async (url, options = {}) => {
+    if (String(url).includes('/api/auth/login') && options.method === 'POST') {
+      return {
+        ok: false,
+        json: async () => ({ ok: false, message: 'Tên đăng nhập hoặc mật khẩu không đúng.' })
+      };
     }
-  });
-  context.firebase = {
-    apps: [],
-    initializeApp: () => ({ firestore: () => ({ collection: () => ({ get: async () => ({ docs: [] }) }) }) }),
-    app: () => ({ firestore: () => ({ collection: () => ({ get: async () => ({ docs: [] }) }) }) })
-  };
-
-  const code = fs.readFileSync(path.join(__dirname, '..', 'auth.js'), 'utf8');
-  vm.runInContext(code, vm.createContext(context));
-
-  const result = await context.window.loginUser('env-admin', 'env-secret');
-  if (!result.ok) {
-    throw new Error(`Expected env fallback login to succeed, got: ${JSON.stringify(result)}`);
-  }
-
-  console.log('env fallback login test passed');
-})().catch((error) => {
-  console.error(error.message);
-  process.exit(1);
-});
-
-(async () => {
-  const { context } = createContext();
-  context.fetch = async () => ({ ok: true, json: async () => ({}) });
-  context.firebase = {
-    apps: [],
-    initializeApp: (_config, name = '[DEFAULT]') => {
-      const app = { name, firestore: () => ({ collection: () => ({ get: async () => ({ docs: [{ id: '1', data: () => ({ username: 'KhuSX', passwordHash: crypto.createHash('sha256').update('200695').digest('hex'), role: 'viewer', page: 'viewer.html' }) }] }) }) }) };
-      context.firebase.apps.push(app);
-      return app;
-    },
-    app: (name = '[DEFAULT]') => context.firebase.apps.find((item) => item.name === name)
+    return { ok: false, json: async () => ({}) };
   };
 
   const code = fs.readFileSync(path.join(__dirname, '..', 'auth.js'), 'utf8');

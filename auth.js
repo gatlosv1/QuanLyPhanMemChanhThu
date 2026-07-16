@@ -216,19 +216,43 @@ function clearSession() {
   localStorage.removeItem('appSession');
 }
 
+function getConfiguredApiBaseUrl() {
+  const configured = window.__AUTH_CONFIG__ && typeof window.__AUTH_CONFIG__.API_BASE_URL === 'string'
+    ? window.__AUTH_CONFIG__.API_BASE_URL.trim()
+    : '';
+  return configured ? configured.replace(/\/$/, '') : '';
+}
+
+function isGithubPagesOrigin() {
+  const hostname = window.location && window.location.hostname ? String(window.location.hostname).toLowerCase() : '';
+  return hostname.endsWith('.github.io');
+}
+
 function getApiBaseUrl() {
+  const configuredBaseUrl = getConfiguredApiBaseUrl();
+  if (configuredBaseUrl) {
+    return configuredBaseUrl;
+  }
+
   const currentOrigin = window.location.origin;
-  if (currentOrigin && currentOrigin !== 'null' && currentOrigin !== 'file://') {
+  if (currentOrigin && currentOrigin !== 'null' && currentOrigin !== 'file://' && !isGithubPagesOrigin()) {
     return currentOrigin;
   }
+
+  if (isGithubPagesOrigin()) {
+    return '';
+  }
+
   return 'http://localhost:3001';
 }
 
 function buildApiUrl(path) {
   if (!path) return path;
   if (/^https?:\/\//i.test(path)) return path;
+  const baseUrl = getApiBaseUrl();
+  if (!baseUrl) return '';
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
-  return `${getApiBaseUrl()}${normalizedPath}`;
+  return `${baseUrl}${normalizedPath}`;
 }
 
 async function sha256(text) {
@@ -239,6 +263,9 @@ async function sha256(text) {
 }
 
 async function fetchJson(url, fallback = null, timeoutMs = 3000) {
+  const requestUrl = buildApiUrl(url);
+  if (!requestUrl) return fallback;
+
   const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
   let timeoutId = null;
 
@@ -247,7 +274,7 @@ async function fetchJson(url, fallback = null, timeoutMs = 3000) {
   }
 
   try {
-    const response = await fetch(buildApiUrl(url), {
+    const response = await fetch(requestUrl, {
       cache: 'no-store',
       signal: controller ? controller.signal : undefined
     });
@@ -260,72 +287,44 @@ async function fetchJson(url, fallback = null, timeoutMs = 3000) {
   }
 }
 
-function getPublicFirebaseConfig() {
-  const config = window.FIREBASE_CONFIG;
-  return config && typeof config === 'object' ? config : {};
-}
+async function postJson(url, payload = {}, fallback = null, timeoutMs = 5000) {
+  const requestUrl = buildApiUrl(url);
+  if (!requestUrl) return fallback;
 
-async function getRuntimeConfig() {
-  if (window.getRuntimeConfig && window.getRuntimeConfig !== getRuntimeConfig) {
-    const runtimeConfig = await window.getRuntimeConfig();
-    return runtimeConfig && typeof runtimeConfig === 'object'
-      ? runtimeConfig
-      : getPublicFirebaseConfig();
-  }
+  const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  let timeoutId = null;
 
-  const config = await fetchJson('/api/config', null, 2500);
-  return {
-    ...getPublicFirebaseConfig(),
-    ...(config && typeof config === 'object' ? config : {})
-  };
-}
-
-async function getBackendAuthAccounts() {
-  const accounts = await fetchJson('/api/auth/accounts', [], 2500);
-  return Array.isArray(accounts) ? accounts : [];
-}
-
-async function getFirebaseAccounts() {
-  if (typeof firebase === 'undefined' || !firebase.apps) {
-    return [];
+  if (controller) {
+    timeoutId = setTimeout(() => controller.abort(), timeoutMs);
   }
 
   try {
-    const config = await getRuntimeConfig();
-    const appName = 'auth-firebase';
-    if (!firebase.apps.find(app => app.name === appName)) {
-      firebase.initializeApp(config || {}, appName);
+    const response = await fetch(requestUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload || {}),
+      cache: 'no-store',
+      signal: controller ? controller.signal : undefined
+    });
+
+    const data = await response.json().catch(() => null);
+    if (!response.ok) {
+      return data || fallback;
     }
-    const db = firebase.app(appName).firestore();
-    const snapshot = await db.collection('accounts').get();
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    return data;
   } catch (error) {
-    return [];
+    return fallback;
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
   }
 }
 
 async function getAuthAccounts(forceRefresh = false) {
-  if (!forceRefresh && authAccountsCache.length) {
-    return authAccountsCache;
+  if (forceRefresh) {
+    authAccountsCache = [];
   }
-
-  const firebaseAccounts = await getFirebaseAccounts();
-  const backendAccounts = await getBackendAuthAccounts();
-  const merged = [
-    ...(Array.isArray(backendAccounts) ? backendAccounts : []),
-    ...(Array.isArray(firebaseAccounts) ? firebaseAccounts : [])
-  ];
-
-  const dedupedByUsername = new Map();
-  merged.forEach((account) => {
-    if (!account || !account.username) return;
-    dedupedByUsername.set(account.username, account);
-  });
-
-  authAccountsCache = Array.from(dedupedByUsername.values()).map((account) => ({
-    ...account,
-    permissions: normalizePermissions(account)
-  }));
   return authAccountsCache;
 }
 
@@ -349,22 +348,11 @@ async function loginUser(username, password) {
     };
   }
 
-  const accounts = await getAuthAccounts(true);
-  if (!accounts.length) {
-    return { ok: false, message: 'Chưa có tài khoản đăng nhập hoặc không đọc được dữ liệu tài khoản từ Firebase.' };
-  }
-
-  const account = accounts.find(item => item.username === validation.username);
-  if (!account) {
-    recordLoginFailure(validation.username);
-    return { ok: false, message: 'Tên đăng nhập hoặc mật khẩu không đúng.' };
-  }
-
-  const candidateHash = await sha256(validation.password);
-  const isLegacyPlaintext = typeof account.password === 'string' && account.password === validation.password;
-  const isHashMatch = typeof account.passwordHash === 'string' && account.passwordHash === candidateHash;
-
-  if (!isLegacyPlaintext && !isHashMatch) {
+  const loginResponse = await postJson('/api/auth/login', {
+    username: validation.username,
+    password: validation.password
+  }, null, 5000);
+  if (!loginResponse || loginResponse.ok !== true || !loginResponse.account) {
     const updatedRateLimit = recordLoginFailure(validation.username);
     if (updatedRateLimit.blocked) {
       const retryAfterSeconds = Math.max(1, Math.ceil(updatedRateLimit.retryAfterMs / 1000));
@@ -373,10 +361,19 @@ async function loginUser(username, password) {
         message: `Bạn đã thử đăng nhập quá nhiều lần. Vui lòng chờ ${retryAfterSeconds} giây rồi thử lại.`
       };
     }
-    return { ok: false, message: 'Tên đăng nhập hoặc mật khẩu không đúng.' };
+    return {
+      ok: false,
+      message: (loginResponse && typeof loginResponse.message === 'string' && loginResponse.message)
+        ? loginResponse.message
+        : (isGithubPagesOrigin() && !getConfiguredApiBaseUrl()
+          ? 'Chưa cấu hình API_BASE_URL cho GitHub Pages.'
+          : 'Không thể đăng nhập. Vui lòng kiểm tra kết nối backend.')
+    };
   }
 
   clearLoginFailures(validation.username);
+
+  const account = loginResponse.account;
 
   const session = {
     username: account.username,
@@ -443,7 +440,6 @@ function logoutUser() {
 
 window.AUTH_ACCOUNTS = authAccountsCache;
 window.getCurrentUser = getCurrentUser;
-window.getRuntimeConfig = getRuntimeConfig;
 window.getAuthAccounts = getAuthAccounts;
 window.refreshAuthAccounts = refreshAuthAccounts;
 window.loginUser = loginUser;
