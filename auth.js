@@ -232,9 +232,20 @@ function isGithubPagesOrigin() {
   return hostname.endsWith('.github.io');
 }
 
+function isLocalOnlyApiBaseUrl(value) {
+  if (!value || typeof value !== 'string') return false;
+  try {
+    const parsed = new URL(value);
+    const hostname = String(parsed.hostname || '').toLowerCase();
+    return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1';
+  } catch (error) {
+    return /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(?::\d+)?/i.test(String(value || '').trim());
+  }
+}
+
 function getApiBaseUrl() {
   const configuredBaseUrl = getConfiguredApiBaseUrl();
-  if (configuredBaseUrl) {
+  if (configuredBaseUrl && !(isGithubPagesOrigin() && isLocalOnlyApiBaseUrl(configuredBaseUrl))) {
     return configuredBaseUrl;
   }
 
@@ -357,6 +368,16 @@ async function loginUser(username, password) {
     password: validation.password
   }, null, 5000);
   if (!loginResponse || loginResponse.ok !== true || !loginResponse.account) {
+    if (!loginResponse) {
+      const configuredBaseUrl = getConfiguredApiBaseUrl();
+      return {
+        ok: false,
+        message: (isGithubPagesOrigin() && (!configuredBaseUrl || isLocalOnlyApiBaseUrl(configuredBaseUrl)))
+          ? 'Chưa cấu hình API_BASE_URL hợp lệ cho GitHub Pages. Vui lòng dùng URL backend public (ví dụ Render).' 
+          : 'Không thể đăng nhập. Vui lòng kiểm tra kết nối backend.'
+      };
+    }
+
     const updatedRateLimit = recordLoginFailure(validation.username);
     if (updatedRateLimit.blocked) {
       const retryAfterSeconds = Math.max(1, Math.ceil(updatedRateLimit.retryAfterMs / 1000));
