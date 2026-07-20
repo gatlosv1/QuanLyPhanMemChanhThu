@@ -217,9 +217,13 @@ function clearSession() {
 }
 
 function getConfiguredApiBaseUrl() {
-  const configured = window.__AUTH_CONFIG__ && typeof window.__AUTH_CONFIG__.API_BASE_URL === 'string'
+  const configuredFromAuth = window.__AUTH_CONFIG__ && typeof window.__AUTH_CONFIG__.API_BASE_URL === 'string'
     ? window.__AUTH_CONFIG__.API_BASE_URL.trim()
     : '';
+  const configuredFromEnv = window.__ENV__ && typeof window.__ENV__.API_BASE_URL === 'string'
+    ? window.__ENV__.API_BASE_URL.trim()
+    : '';
+  const configured = configuredFromAuth || configuredFromEnv;
   return configured ? configured.replace(/\/$/, '') : '';
 }
 

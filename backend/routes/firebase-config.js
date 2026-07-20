@@ -37,6 +37,16 @@ function readConfigFromWindowOrProcess() {
 }
 
 function getBackendBaseUrl() {
+  if (typeof window !== 'undefined' && window.__ENV__ && typeof window.__ENV__.API_BASE_URL === 'string') {
+    const configured = window.__ENV__.API_BASE_URL.trim();
+    if (configured) return configured.replace(/\/$/, '');
+  }
+
+	if (typeof window !== 'undefined' && window.__AUTH_CONFIG__ && typeof window.__AUTH_CONFIG__.API_BASE_URL === 'string') {
+		const configured = window.__AUTH_CONFIG__.API_BASE_URL.trim();
+		if (configured) return configured.replace(/\/$/, '');
+	}
+
 	if (typeof window === 'undefined' || !window.location) return '';
 	const origin = window.location.origin;
 	if (origin && origin !== 'null' && origin !== 'file://') {

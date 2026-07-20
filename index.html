@@ -84,6 +84,7 @@
     </style>
 </head>
 <body class="min-h-screen bg-slate-50 text-slate-800">
+    <script src="auth-config.js"></script>
     <script src="env.js"></script>
     <script src="backend/routes/firebase-config.js"></script>
     <script src="auth.js"></script>
@@ -1696,7 +1697,7 @@
                 const safeStt = escapeHtml(item.stt || 0);
                 const safeUser = escapeHtml(item.scannedBy || 'unknown');
                 const safeSource = escapeHtml(item.sourceType || 'barcode');
-                
+
                 html += `
                     <tr class="border-b hover:bg-gray-50" data-id="${safeId}">
                         <td class="px-4 py-3 text-center">
