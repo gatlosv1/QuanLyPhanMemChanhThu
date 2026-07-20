@@ -78,10 +78,10 @@ app.get('*', (req, res) => {
 // Start server
 async function start() {
   try {
-    const syncResult = await syncBootstrapAccountsToFirebase();
-    console.log(`✓ Đồng bộ tài khoản bootstrap lên Firebase: ${syncResult.synced}/${syncResult.total}`);
+    await syncBootstrapAccountsToFirebase();
+    console.log('✓ Bootstrap auth sync completed');
   } catch (err) {
-    console.warn('⚠️ Không thể đồng bộ tài khoản bootstrap lên Firebase:', err.message);
+    console.warn('⚠️ Bootstrap auth sync failed');
   }
 
   try {

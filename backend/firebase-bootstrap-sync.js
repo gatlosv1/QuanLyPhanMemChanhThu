@@ -2,7 +2,7 @@ require('dotenv').config({ path: require('path').join(__dirname, '.env') });
 
 const crypto = require('crypto');
 const { initializeApp, getApp, getApps } = require('firebase/app');
-const { getFirestore, doc, getDoc, setDoc } = require('firebase/firestore');
+const { getFirestore, doc, getDoc, setDoc, deleteField } = require('firebase/firestore');
 
 function getFirebaseConfig() {
   return {
@@ -34,14 +34,27 @@ function toAccountDocId(usernameLower) {
   return usernameLower.replace(/[^a-z0-9._-]/g, '_');
 }
 
+function isPBKDF2Hash(value) {
+  return typeof value === 'string' && value.startsWith('pbkdf2$');
+}
+
+function hashPasswordPBKDF2(password) {
+  const iterations = 120000;
+  const keyLength = 32;
+  const digest = 'sha256';
+  const salt = crypto.randomBytes(16).toString('hex');
+  const derived = crypto.pbkdf2Sync(String(password || ''), salt, iterations, keyLength, digest).toString('hex');
+  return `pbkdf2$${digest}$${iterations}$${salt}$${derived}`;
+}
+
 function toPasswordHash(account) {
-  if (typeof account.passwordHash === 'string' && account.passwordHash) {
+  if (isPBKDF2Hash(account.passwordHash)) {
     return account.passwordHash;
   }
   if (typeof account.password !== 'string' || !account.password) {
     return '';
   }
-  return crypto.createHash('sha256').update(account.password, 'utf8').digest('hex');
+  return hashPasswordPBKDF2(account.password);
 }
 
 function getOrCreateFirebaseApp() {
@@ -85,7 +98,7 @@ async function syncBootstrapAccountsToFirebase() {
       permissions: rawAccount.permissions && typeof rawAccount.permissions === 'object'
         ? rawAccount.permissions
         : undefined,
-      password: typeof rawAccount.password === 'string' ? rawAccount.password : undefined,
+      password: deleteField(),
       passwordHash: toPasswordHash(rawAccount),
       updatedAt: now,
       updatedBy: 'env-bootstrap'
@@ -114,12 +127,12 @@ module.exports = {
 
 if (require.main === module) {
   syncBootstrapAccountsToFirebase()
-    .then((result) => {
-      console.log(`[bootstrap-sync] total=${result.total} synced=${result.synced} skipped=${result.skipped}`);
+    .then(() => {
+      console.log('[bootstrap-sync] completed');
       process.exit(0);
     })
-    .catch((error) => {
-      console.error('[bootstrap-sync] failed:', error.message);
+    .catch(() => {
+      console.error('[bootstrap-sync] failed');
       process.exit(1);
     });
 }

@@ -48,14 +48,28 @@ function toAccountDocId(usernameLower) {
   return String(usernameLower || '').replace(/[^a-z0-9._-]/g, '_');
 }
 
-function hashPassword(password) {
-  return crypto.createHash('sha256').update(String(password || ''), 'utf8').digest('hex');
+function verifyPasswordPBKDF2(encodedHash, password) {
+  if (typeof encodedHash !== 'string' || !encodedHash.startsWith('pbkdf2$')) return false;
+  const parts = encodedHash.split('$');
+  if (parts.length !== 5) return false;
+  const digest = parts[1];
+  const iterations = Number.parseInt(parts[2], 10);
+  const salt = parts[3];
+  const storedHex = parts[4];
+  if (!digest || !Number.isFinite(iterations) || iterations < 10000 || !salt || !storedHex) return false;
+
+  const derivedHex = crypto.pbkdf2Sync(String(password || ''), salt, iterations, Buffer.from(storedHex, 'hex').length, digest).toString('hex');
+  const storedBuffer = Buffer.from(storedHex, 'hex');
+  const derivedBuffer = Buffer.from(derivedHex, 'hex');
+  if (storedBuffer.length !== derivedBuffer.length) return false;
+  return crypto.timingSafeEqual(storedBuffer, derivedBuffer);
 }
 
 function isPasswordMatch(account, password) {
   if (!account || typeof account !== 'object') return false;
   const plainMatch = typeof account.password === 'string' && account.password === password;
-  const hashMatch = typeof account.passwordHash === 'string' && account.passwordHash === hashPassword(password);
+  const hashValue = typeof account.passwordHash === 'string' ? account.passwordHash : '';
+  const hashMatch = verifyPasswordPBKDF2(hashValue, password);
   return plainMatch || hashMatch;
 }
 
